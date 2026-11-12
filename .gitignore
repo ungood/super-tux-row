@@ -1,0 +1,10 @@
+__pycache__/
+.direnv/
+result
+result-*
+
+# Android
+.gradle/
+build/
+local.properties
+.kotlin/
