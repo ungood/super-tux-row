@@ -1,7 +1,10 @@
 # SuperTuxRower tasks. Run `just` to list them.
 
-# The tablet's adb address; override with TABLET=host:port.
-tablet := env_var_or_default("TABLET", "tablet.example:5555")
+# Local settings, such as the tablet's address, come from .env (not checked in; see example.env).
+set dotenv-load
+
+# The tablet's adb address, host:port.
+tablet := env_var_or_default("TABLET", "")
 adb := "adb -s " + tablet
 package := "name.onetrue.supertuxrower"
 apk := "android/app/build/outputs/apk/debug/app-debug.apk"
@@ -31,37 +34,37 @@ clean:
 
 # Connect to the tablet over Wi-Fi adb (turn it on on the tablet first; see docs/tablet.md)
 [group('tablet')]
-connect:
+connect: _tablet
     adb connect {{tablet}}
 
 # Install the app on the tablet
 [group('tablet')]
-install: build
+install: _tablet build
     {{adb}} install -r {{apk}}
 
 # Install and start the app, on the rower if it's plugged in
 [group('tablet')]
-run: install
+run: _tablet install
     {{adb}} shell am start -S -n {{package}}/.MainActivity
 
 # Install and start the app on the simulated rower
 [group('tablet')]
-sim: install
+sim: _tablet install
     {{adb}} shell am start -S -n {{package}}/.MainActivity --ez simulate true
 
 # Stop the app
 [group('tablet')]
-stop:
+stop: _tablet
     {{adb}} shell am force-stop {{package}}
 
 # Follow the app's log
 [group('tablet')]
-logs:
+logs: _tablet
     {{adb}} logcat --pid=$({{adb}} shell pidof {{package}})
 
 # Save a screenshot from the tablet
 [group('tablet')]
-screenshot file="screenshot.png":
+screenshot file="screenshot.png": _tablet
     {{adb}} exec-out screencap -p > {{file}}
 
 # Record a session from a rower plugged into this computer, into captures/
@@ -73,3 +76,8 @@ capture file seconds="60":
 [group('rower')]
 scan:
     python3 tools/scan.py captures/scan.json
+
+# Stop with a helpful message if the tablet's address isn't set.
+[private]
+_tablet:
+    @test -n "{{tablet}}" || (echo "Set TABLET=host:port in .env (see example.env)." >&2; exit 1)

@@ -9,3 +9,6 @@ build/
 local.properties
 .kotlin/
 screenshot.png
+
+# Local settings; see example.env
+.env

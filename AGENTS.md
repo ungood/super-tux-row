@@ -17,10 +17,10 @@ tools with mise or globally. Tasks live in the `justfile`:
 | `just screenshot FILE` | Save the tablet's screen, to check UI changes by looking at them |
 | `just logs` | Follow the app's logcat |
 
-The tablet is at `tablet.example:5555` (override with `TABLET`). If `adb` can't reach it,
-adb over Wi-Fi was probably reset by a reboot; ask the user to re-enable it (see
-`docs/tablet.md`). Driving the UI from adb (`adb shell input tap X Y`) works; the screen is
-1920×1080.
+The tablet's address is `TABLET=host:port` in `.env`, which isn't checked in (see
+`example.env`). Never commit a real hostname or IP address. If `adb` can't reach the tablet, adb
+over Wi-Fi was probably reset by a reboot; ask the user to re-enable it (see `docs/tablet.md`).
+Driving the UI from adb (`adb shell input tap X Y`) works; the screen is 1920×1080.
 
 ## Architecture
 

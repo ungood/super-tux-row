@@ -50,9 +50,9 @@ lasts until reboot:
 su -c 'setprop service.adb.tcp.port 5555; stop adbd; start adbd'
 ```
 
-The tablet has a fixed address on the home network, `tablet.example` (192.0.2.10);
-connect with `adb connect tablet.example:5555`. (`rower.local` does not resolve: Android 9
-does not advertise its hostname over mDNS.)
+Give the tablet a fixed address on your network (a DHCP reservation on the router) and put it
+in `.env` as `TABLET=host:5555`; `just connect` then connects to it. A `.local` name won't work:
+Android 9 doesn't advertise its hostname over mDNS.
 
 **Security:** `ro.adb.secure=0`, so adbd accepts any client without key authorization. While
 TCP adb is on, anyone on the network can get a shell, and with `su`, root. Only enable it on a

@@ -48,10 +48,17 @@ just               # list the tasks
 just check         # run the tests and build the app
 ```
 
-To run it on a tablet, turn on adb over Wi-Fi (see [docs/tablet.md](docs/tablet.md)), then:
+To run it on a tablet, turn on adb over Wi-Fi (see [docs/tablet.md](docs/tablet.md)) and put
+the tablet's address in a `.env` file, which stays out of git:
 
 ```sh
-just connect       # TABLET=host:port to use a different tablet
+cp example.env .env   # then set TABLET=host:port
+```
+
+Then:
+
+```sh
+just connect       # adb-connect to TABLET
 just run           # install and start, using the rower if it's plugged in
 just sim           # install and start with a simulated rower, no rowing needed
 just logs          # follow the app's log
