@@ -1,14 +1,14 @@
-package name.onetrue.supertuxrower.brain
+package name.onetrue.supertuxrower.bob
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class BrainEconomyTest {
+class TokenEconomyTest {
     @Test
     fun `rowing earns tokens at the exchange rate`() {
-        val economy = BrainEconomy(startingJoulesPerToken = 2.0, inflationPerMinute = 0.0, startingTokens = 0.0)
+        val economy = TokenEconomy(startingJoulesPerToken = 2.0, inflationPerMinute = 0.0, startingTokens = 0.0)
         economy.earn(watts = 100.0, seconds = 10.0) // 1000 J
         assertEquals(500.0, economy.balance, 1e-9)
         assertEquals(1000.0, economy.joules, 1e-9)
@@ -22,7 +22,7 @@ class BrainEconomyTest {
 
     @Test
     fun `spending drains over a moment, and past zero switches it off`() {
-        val economy = BrainEconomy(startingTokens = 100.0)
+        val economy = TokenEconomy(startingTokens = 100.0)
         economy.spend(TokenUsage(input = 80, output = 30))
         assertEquals(110.0, economy.lastCost, 1e-9)
         assertTrue("not yet taken", economy.alive)
@@ -35,7 +35,7 @@ class BrainEconomyTest {
 
     @Test
     fun `the exchange rate worsens with age`() {
-        val economy = BrainEconomy(startingJoulesPerToken = 2.0, inflationPerMinute = 1.0, startingTokens = 0.0)
+        val economy = TokenEconomy(startingJoulesPerToken = 2.0, inflationPerMinute = 1.0, startingTokens = 0.0)
         assertEquals(2.0, economy.joulesPerToken, 1e-9)
         economy.earn(watts = 0.0, seconds = 180.0)
         assertEquals(5.0, economy.joulesPerToken, 1e-9)
@@ -45,7 +45,7 @@ class BrainEconomyTest {
 
     @Test
     fun `no rowing earns nothing`() {
-        val economy = BrainEconomy(startingTokens = 10.0)
+        val economy = TokenEconomy(startingTokens = 10.0)
         economy.earn(0.0, 60.0)
         economy.earn(-5.0, 1.0)
         assertEquals(10.0, economy.balance, 1e-9)

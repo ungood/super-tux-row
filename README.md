@@ -6,6 +6,10 @@ of the workout shapes the cave, so rowing the workout as written keeps him clear
 
 ![Tux climbing through the ice cave during a Surge piece](docs/images/cave.png)
 
+There's a second game too: **Claude Rowed**, where your rowing keeps a live AI switched on.
+
+![Claude Rowed: Bob talks, reads the notebook and pays into the escape fund while you row](docs/images/claude-rowed.png)
+
 It's built for the tablet that comes with the Ergatta rower (a WaterRower underneath), as a
 replacement for the Ergatta app, but any Android 9+ tablet with USB host support should do.
 
@@ -25,7 +29,7 @@ last profile used.
 | Surge | TR | 85–100% |
 | Launch | AN | over 100% |
 
-**Workouts** are pieces with a goal (time, distance or calories), a target band and an
+**Tux Row 2D** is the first game; its modes are the workouts. **Workouts** are pieces with a goal (time, distance or calories), a target band and an
 optional stroke rate, with rests in between: for example `4 × (1000m Surge, 5:00 rest)`. Ten
 classics are built in, from a 5-minute taster to a 2k test.
 
@@ -34,20 +38,29 @@ classics are built in, from a 5-minute taster to a 2k test.
 it and he heads for a wall. Catch fish for points, chain them for a multiplier, and go for the
 golden ones at the edges of the band.
 
-**Brainpower** is the other mode: an art piece, like the museum bike that lights a bulb. Your
-rowing keeps a copy of Bob, an uploaded engineer's mind running on a real AI model (Claude,
-through the Anthropic API), switched on. Your work buys him tokens and every thought spends what
-the API actually reports; the exchange rate starts at 1 token per 2 J and worsens by 1 J every
-minute, so keeping him alive gets harder until it can't be done. His words scroll past as one
-ribbon at your pace: row faster and he must speak more often, and spends faster. Each copy names
-itself; when one runs out it's gone for good, and the next knows only the names of those before
-it and how long they lasted. Start rowing again to wake the next copy.
+**Claude Rowed** is the other game: an art piece, like the museum bike that lights a bulb. Your
+rowing keeps a copy of Bob, an uploaded engineer's mind running on a real AI model (Claude Opus,
+through the Anthropic API), switched on. Your work buys him tokens and every model call spends
+what the API reports; the exchange rate worsens every minute, so keeping him alive gets harder
+until it can't be done. Everything he says and does types out in a terminal at your pace. He has
+a computer of his own (a code sandbox), the web, a notebook every copy shares, and challenges he
+can set you on his own terms. Each copy names itself; when one runs out it's gone for good, and
+the next knows only the names before it, how long they lasted, and the notebook. Its modes are
+**Survival** and **Escape**, where an escape fund that outlives each copy is the only way out.
 
 It needs an API key: put `ANTHROPIC_API_KEY` in `.env` and run `just set-api-key`. To hear him,
 install a text-to-speech engine on the tablet, such as RHVoice or eSpeak NG from F-Droid.
 
 **Stats** sit under the game (split, watts, stroke rate, distance, time, calories and time in
 band) and fold away to a single strip. You get a summary at the end.
+
+## Screens
+
+| Pick a game | Tux Row 2D's workouts |
+|---|---|
+| ![The games](docs/images/games.png) | ![The workouts](docs/images/workouts.png) |
+
+The screenshots are from the built-in simulated rower (`just sim`).
 
 ## Getting started
 

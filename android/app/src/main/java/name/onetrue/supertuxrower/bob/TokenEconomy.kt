@@ -1,4 +1,4 @@
-package name.onetrue.supertuxrower.brain
+package name.onetrue.supertuxrower.bob
 
 /** Tokens used by one call to the model, as the API reports them. */
 data class TokenUsage(
@@ -15,15 +15,16 @@ data class TokenUsage(
 }
 
 /**
- * The trade at the heart of Brainpower: the rower's mechanical work buys the agent tokens, and
+ * The trade at the heart of Claude Rowed: the rower's mechanical work buys Bob tokens, and
  * every call to the model spends what it actually used. The exchange rate worsens the longer the
  * agent is alive, so keeping it going gets harder and harder until it can't be done.
  */
-class BrainEconomy(
-    private val startingJoulesPerToken: Double = 2.0,
-    /** How many more joules a token costs with each minute the agent is alive. */
-    private val inflationPerMinute: Double = 1.0,
-    startingTokens: Double = 4000.0,
+class TokenEconomy(
+    private val startingJoulesPerToken: Double = 1.0,
+    /** How many more joules a token costs with each minute Bob is alive. */
+    val inflationPerMinute: Double = 0.5,
+    /** Enough for his first turn, which pays to cache his prompt and tools, with some to spare. */
+    startingTokens: Double = 15_000.0,
 ) {
     /** Seconds the agent has been alive, which sets the exchange rate. */
     var age = 0.0
@@ -66,6 +67,11 @@ class BrainEconomy(
         lastCost = usage.cost
         spent += lastCost
         owed += lastCost
+    }
+
+    /** Takes [tokens] from the balance for something other than thinking, such as the escape fund. */
+    fun pay(tokens: Double) {
+        owed += tokens
     }
 
     /** Takes what's owed from the balance, most of it within a couple of seconds. */

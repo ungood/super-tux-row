@@ -13,6 +13,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import name.onetrue.supertuxrower.bob.BobTools
+import name.onetrue.supertuxrower.bob.ClaudeRowedMode
 import name.onetrue.supertuxrower.model.Profile
 import name.onetrue.supertuxrower.model.ProfileStore
 import name.onetrue.supertuxrower.model.Workout
@@ -21,9 +24,11 @@ import name.onetrue.supertuxrower.sensor.RowerSource
 import name.onetrue.supertuxrower.sensor.SimRowerSource
 import name.onetrue.supertuxrower.sensor.UsbRowerSource
 import name.onetrue.supertuxrower.ui.AppTheme
-import name.onetrue.supertuxrower.ui.BrainScreen
+import name.onetrue.supertuxrower.ui.ClaudeRowedScreen
 import name.onetrue.supertuxrower.ui.LoadingScreen
-import name.onetrue.supertuxrower.ui.PickerScreen
+import name.onetrue.supertuxrower.ui.ClaudeRowedModesScreen
+import name.onetrue.supertuxrower.ui.GamesScreen
+import name.onetrue.supertuxrower.ui.TuxRowModesScreen
 import name.onetrue.supertuxrower.ui.ProfileEditor
 import name.onetrue.supertuxrower.ui.ProfilesScreen
 import name.onetrue.supertuxrower.ui.SummaryScreen
@@ -78,10 +83,12 @@ private sealed interface Screen {
     data object Loading : Screen
     data object Profiles : Screen
     data class Edit(val profile: Profile?) : Screen
-    data object Picker : Screen
+    data object Games : Screen
+    data object TuxRowModes : Screen
+    data object ClaudeRowedModes : Screen
     data class Rowing(val runner: WorkoutRunner) : Screen
     data class Summary(val runner: WorkoutRunner) : Screen
-    data object Brain : Screen
+    data class ClaudeRowed(val mode: ClaudeRowedMode) : Screen
 }
 
 @Composable
@@ -112,12 +119,14 @@ private fun App(
         profile = p
         store.lastUsedId = p.id
         lastUsed = p.id
-        screen = Screen.Picker
+        screen = Screen.Games
     }
 
     BackHandler(enabled = screen != Screen.Profiles) {
         screen = when (screen) {
-            is Screen.Rowing, is Screen.Summary, Screen.Brain -> Screen.Picker
+            is Screen.Rowing, is Screen.Summary -> Screen.TuxRowModes
+            is Screen.ClaudeRowed -> Screen.ClaudeRowedModes
+            Screen.TuxRowModes, Screen.ClaudeRowedModes -> Screen.Games
             else -> Screen.Profiles
         }
     }
@@ -146,14 +155,24 @@ private fun App(
             },
             onCancel = { screen = if (profiles.isEmpty()) Screen.Edit(null) else Screen.Profiles },
         )
-        Screen.Picker -> PickerScreen(
+        Screen.Games -> GamesScreen(
             profile!!,
             rowerStatus = rower.status,
             simulated = source?.simulated == true,
             onSimulate = onSimulate,
             onSwitchProfile = { screen = Screen.Profiles },
+            onTuxRow = { screen = Screen.TuxRowModes },
+            onClaudeRowed = { screen = Screen.ClaudeRowedModes },
+        )
+        Screen.TuxRowModes -> TuxRowModesScreen(
+            profile!!,
+            onBack = { screen = Screen.Games },
             onPick = { workout: Workout -> screen = Screen.Rowing(WorkoutRunner(workout, profile!!)) },
-            onBrainpower = { screen = Screen.Brain },
+        )
+        Screen.ClaudeRowedModes -> ClaudeRowedModesScreen(
+            BobTools.escapeFund(LocalContext.current),
+            onBack = { screen = Screen.Games },
+            onPick = { screen = Screen.ClaudeRowed(it) },
         )
         is Screen.Rowing -> WorkoutScreen(
             s.runner, rower,
@@ -166,7 +185,7 @@ private fun App(
             },
             onDone = { screen = Screen.Summary(s.runner) },
         )
-        is Screen.Summary -> SummaryScreen(s.runner, onDone = { screen = Screen.Picker })
-        Screen.Brain -> BrainScreen(rower, sim = source as? SimRowerSource, onDone = { screen = Screen.Picker })
+        is Screen.Summary -> SummaryScreen(s.runner, onDone = { screen = Screen.TuxRowModes })
+        is Screen.ClaudeRowed -> ClaudeRowedScreen(rower, sim = source as? SimRowerSource, s.mode, onDone = { screen = Screen.ClaudeRowedModes })
     }
 }
