@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SuperTuxRower"
+rootProject.name = "SuperTuxRow"
 include(":app")

@@ -1,5 +1,5 @@
 {
-  description = "SuperTuxRower: rowing games for the WaterRower S4";
+  description = "SuperTuxRow: rowing games for the WaterRower S4";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

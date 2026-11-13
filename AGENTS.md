@@ -1,6 +1,6 @@
 # Agent guide
 
-Notes for AI coding agents working on SuperTuxRower. Read [README.md](README.md) first for what
+Notes for AI coding agents working on SuperTuxRow. Read [README.md](README.md) first for what
 the project is; the docs in `docs/` hold the domain knowledge.
 
 ## Commands
@@ -16,6 +16,7 @@ tools with mise or globally. Tasks live in the `justfile`:
 | `just sim` | Install and start on the simulated rower |
 | `just screenshot FILE` | Save the tablet's screen, to check UI changes by looking at them |
 | `just logs` | Follow the app's logcat |
+| `just set-home` / `just restore-home` | Make the app the tablet's home app, or give home back to Android's launcher |
 
 The tablet's address is `TABLET=host:port` in `.env`, which isn't checked in (see
 `example.env`). Never commit a real hostname or IP address. If `adb` can't reach the tablet, adb

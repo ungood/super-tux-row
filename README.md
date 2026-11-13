@@ -1,4 +1,4 @@
-# SuperTuxRower
+# SuperTuxRow
 
 Rowing workouts as a game. Plug a WaterRower into an Android tablet, pick a workout, and row Tux
 through an ice cave: pull harder and he swims up and faster, ease off and he sinks. Each piece
@@ -63,7 +63,12 @@ just run           # install and start, using the rower if it's plugged in
 just sim           # install and start with a simulated rower, no rowing needed
 just logs          # follow the app's log
 just screenshot    # save what's on screen
+just set-home      # make it the tablet's home app, so it's what you see at start
+just restore-home  # hand home back to Android's launcher
 ```
+
+As the home app it opens at start-up and on Home. Its **Android** button (top right of the
+profile screen) opens Android's own launcher, for settings and other apps.
 
 The first time it starts with the rower plugged in, Android asks whether the app may use the
 "WR USB sensor". Leave "Always open" unticked unless you want it to take over from the Ergatta

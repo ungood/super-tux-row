@@ -1,6 +1,6 @@
 # Workout model
 
-How SuperTuxRower describes intensity and structures workouts. It blends rowing's traditional
+How SuperTuxRow describes intensity and structures workouts. It blends rowing's traditional
 training bands, Concept2-style interval structure and Peloton-style effort cues; see
 `ergatta-notes.md` for what we deliberately do differently from Ergatta.
 

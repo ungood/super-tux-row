@@ -1,7 +1,7 @@
 # Notes from the Ergatta app
 
 Concepts and numbers observed in the Ergatta app (com.ergatta.seaborn 2026.46.007), kept as
-inspiration for our own design. None of its code, art or names are used in SuperTuxRower; the
+inspiration for our own design. None of its code, art or names are used in SuperTuxRow; the
 rower protocol details are in `protocol.md`.
 
 ## Intensity zones
@@ -31,7 +31,7 @@ paddle 20 min × 0.55, paddle bottom 90 min × 0.40. Coefficients come from a 2k
 population of 1000 m times (mean 320 s, SD 93 s). A 1000 m all-out calibration row then sets
 real zones, and later workouts recalibrate automatically.
 
-For SuperTuxRower: start with editable split-based defaults (#4); a calibration row is #7.
+For SuperTuxRow: start with editable split-based defaults (#4); a calibration row is #7.
 
 ## Workout structure
 
@@ -67,7 +67,7 @@ on one shared workout engine: a per-mode state machine on top of common metrics.
   distance, energy, heart rate, power, stroke rate.
 - Interval modes draw the zone bands as a target gauge.
 
-There is no compact/expanded toggle; that is something SuperTuxRower adds (#3).
+There is no compact/expanded toggle; that is something SuperTuxRow adds (#3).
 
 ## Architecture ideas
 

@@ -28,6 +28,15 @@ There is no AV1 decoder.
 | `com.ergatta.bort`, `com.ergatta.bort.ota` | Memfault Bort: device telemetry and OTA |
 | `com.android.launcher3` | The default home app; Ergatta is not the launcher |
 
+## Home app
+
+The tablet's home app is chosen with `cmd package set-home-activity` (`just set-home` and
+`just restore-home`). Three apps offer to be home: Android's launcher
+(`com.android.launcher3/.Launcher`, the original default), Ergatta's
+(`com.ergatta.seaborn/.LoginRegisterActivity`) and SuperTuxRow. Ergatta's app doesn't start
+itself at boot (its only boot receiver reschedules background work), so the home app is what
+appears at start-up.
+
 ## USB
 
 - The tablet runs `adbd` with `sys.usb.config=adb`, and the RK3399 USB-C controller `fe800000.dwc3`

@@ -1,4 +1,4 @@
-# SuperTuxRower tasks. Run `just` to list them.
+# SuperTuxRow tasks. Run `just` to list them.
 
 # Local settings, such as the tablet's address, come from .env (not checked in; see example.env).
 set dotenv-load
@@ -66,6 +66,18 @@ logs: _tablet
 [group('tablet')]
 screenshot file="screenshot.png": _tablet
     {{adb}} exec-out screencap -p > {{file}}
+
+# Make the app the tablet's home app, so it's what you see at start and on Home
+[group('tablet')]
+set-home: _tablet
+    {{adb}} shell cmd package set-home-activity {{package}}/.MainActivity
+    {{adb}} shell input keyevent KEYCODE_HOME
+
+# Give home back to Android's launcher
+[group('tablet')]
+restore-home launcher="com.android.launcher3/.Launcher": _tablet
+    {{adb}} shell cmd package set-home-activity {{launcher}}
+    {{adb}} shell input keyevent KEYCODE_HOME
 
 # Record a session from a rower plugged into this computer, into captures/
 [group('rower')]

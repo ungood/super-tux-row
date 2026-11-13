@@ -50,9 +50,15 @@ fun ProfilesScreen(
     onPick: (Profile) -> Unit,
     onEdit: (Profile) -> Unit,
     onNew: () -> Unit,
+    onOpenAndroid: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(Deep).padding(48.dp)) {
-        Text("Who's rowing?", style = MaterialTheme.typography.displayMedium, color = Ink)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Who's rowing?", style = MaterialTheme.typography.displayMedium, color = Ink)
+            Spacer(Modifier.weight(1f))
+            // The way out to the rest of the tablet when this app is the home app.
+            TextButton(onOpenAndroid) { Text("Android") }
+        }
         Spacer(Modifier.height(32.dp))
         // The last-used profile comes first and is highlighted, so it's one tap away.
         val ordered = profiles.sortedByDescending { it.id == lastUsedId }

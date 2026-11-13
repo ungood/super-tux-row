@@ -1,6 +1,8 @@
 package name.onetrue.supertuxrower
 
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -36,7 +38,7 @@ class MainActivity : ComponentActivity() {
         // Launch with `--ez simulate true` (see the justfile's `sim`) to start on the simulated rower.
         useSimulator(intent.getBooleanExtra(EXTRA_SIMULATE, false) || !UsbRowerSource.sensorPresent(this))
         setContent {
-            AppTheme { App(store, rower, source, ::useSimulator) }
+            AppTheme { App(store, rower, source, ::useSimulator, ::openAndroid) }
         }
     }
 
@@ -47,6 +49,19 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_SIMULATE = "simulate"
+    }
+
+    /**
+     * Opens another home app (normally Android's own launcher), falling back to Settings. When this
+     * app is the home app, it's the only way to the rest of the tablet.
+     */
+    private fun openAndroid() {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val other = packageManager.queryIntentActivities(home, 0).map { it.activityInfo }.firstOrNull {
+            it.packageName != packageName && it.packageName != "com.android.settings" && !it.packageName.startsWith("com.ergatta")
+        }
+        val intent = other?.let { Intent(home).setClassName(it.packageName, it.name) } ?: Intent(Settings.ACTION_SETTINGS)
+        startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private fun useSimulator(simulate: Boolean) {
@@ -64,7 +79,13 @@ private sealed interface Screen {
 }
 
 @Composable
-private fun App(store: ProfileStore, rower: Rower, source: RowerSource?, onSimulate: (Boolean) -> Unit) {
+private fun App(
+    store: ProfileStore,
+    rower: Rower,
+    source: RowerSource?,
+    onSimulate: (Boolean) -> Unit,
+    onOpenAndroid: () -> Unit,
+) {
     var profiles by remember { mutableStateOf(store.load()) }
     var lastUsed by remember { mutableStateOf(store.lastUsedId) }
     var profile by remember { mutableStateOf<Profile?>(null) }
@@ -90,6 +111,7 @@ private fun App(store: ProfileStore, rower: Rower, source: RowerSource?, onSimul
             onPick = ::choose,
             onEdit = { screen = Screen.Edit(it) },
             onNew = { screen = Screen.Edit(null) },
+            onOpenAndroid = onOpenAndroid,
         )
         is Screen.Edit -> ProfileEditor(
             s.profile,
