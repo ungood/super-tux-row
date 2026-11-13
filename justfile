@@ -67,17 +67,46 @@ logs: _tablet
 screenshot file="screenshot.png": _tablet
     {{adb}} exec-out screencap -p > {{file}}
 
-# Make the app the tablet's home app, so it's what you see at start and on Home
+# Make the app the tablet's home app, so it's what you see at start and on Home. Also clears the
+# launcher's boot app, which otherwise opens Ergatta whenever Android's launcher starts.
 [group('tablet')]
 set-home: _tablet
     {{adb}} shell cmd package set-home-activity {{package}}/.MainActivity
+    {{adb}} shell "su -c 'setprop persist.sys.bootapp \"\"'"
     {{adb}} shell input keyevent KEYCODE_HOME
 
-# Give home back to Android's launcher
+# Give home back to Android's launcher, with Ergatta as its boot app as the tablet shipped
 [group('tablet')]
-restore-home launcher="com.android.launcher3/.Launcher": _tablet
+restore-home launcher="com.android.launcher3/.Launcher" bootapp="com.ergatta.seaborn/com.ergatta.seaborn.LoginRegisterActivity": _tablet
     {{adb}} shell cmd package set-home-activity {{launcher}}
+    {{adb}} shell "su -c 'setprop persist.sys.bootapp {{bootapp}}'"
     {{adb}} shell input keyevent KEYCODE_HOME
+
+# Keep adb over Wi-Fi on across reboots. adb on the tablet accepts anyone, so this leaves a root
+# shell open to the whole network; see docs/tablet.md.
+[group('tablet')]
+persist-adb: _tablet
+    {{adb}} shell "su -c 'setprop persist.adb.tcp.port 5555'"
+    @echo "persist.adb.tcp.port = $({{adb}} shell getprop persist.adb.tcp.port)"
+
+# Stop adb over Wi-Fi coming back on after a reboot
+[group('tablet')]
+unpersist-adb: _tablet
+    {{adb}} shell "su -c 'setprop persist.adb.tcp.port \"\"'"
+    @echo "persist.adb.tcp.port = '$({{adb}} shell getprop persist.adb.tcp.port)'"
+
+# Turn off Ergatta's firmware updates and telemetry (Memfault). Its update manager is the device
+# owner, which Android won't let us disable; see docs/tablet.md.
+[group('tablet')]
+disable-updates: _tablet
+    {{adb}} shell pm disable-user --user 0 com.ergatta.bort.ota
+    {{adb}} shell pm disable-user --user 0 com.ergatta.bort
+
+# Turn Ergatta's firmware updates and telemetry back on
+[group('tablet')]
+enable-updates: _tablet
+    {{adb}} shell pm enable com.ergatta.bort.ota
+    {{adb}} shell pm enable com.ergatta.bort
 
 # Record a session from a rower plugged into this computer, into captures/
 [group('rower')]

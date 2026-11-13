@@ -33,9 +33,24 @@ There is no AV1 decoder.
 The tablet's home app is chosen with `cmd package set-home-activity` (`just set-home` and
 `just restore-home`). Three apps offer to be home: Android's launcher
 (`com.android.launcher3/.Launcher`, the original default), Ergatta's
-(`com.ergatta.seaborn/.LoginRegisterActivity`) and SuperTuxRow. Ergatta's app doesn't start
-itself at boot (its only boot receiver reschedules background work), so the home app is what
-appears at start-up.
+(`com.ergatta.seaborn/.LoginRegisterActivity`) and SuperTuxRow.
+
+The tablet's launcher is a customised Launcher3 (the Quickstep build). When it starts, it opens
+the activity named in the system property `persist.sys.bootapp`, which ships set to
+`com.ergatta.seaborn/com.ergatta.seaborn.LoginRegisterActivity`: that's how the Ergatta app
+appears at start-up. `just set-home` clears it, so opening Android's launcher from SuperTuxRow
+doesn't bounce into Ergatta; `just restore-home` puts it back. (Ergatta's own boot receiver only
+reschedules background work.)
+
+## Updates
+
+- `com.ergatta.bort.ota` and `com.ergatta.bort` (Memfault) handle firmware updates and
+  telemetry. `just disable-updates` disables both; `just enable-updates` re-enables them. A
+  firmware update could undo root, persistent adb and the home-app setup.
+- `com.ergatta.updatemanager` can install app updates silently. It's the device owner, so
+  `pm disable-user` refuses ("Cannot disable a protected package"). Disabling it would mean
+  removing its device-owner registration as root first.
+- The Ergatta app updates itself from `appupdates.ergatta.com`; only disabling the app stops that.
 
 ## USB
 
@@ -63,6 +78,9 @@ Give the tablet a fixed address on your network (a DHCP reservation on the route
 in `.env` as `TABLET=host:5555`; `just connect` then connects to it. A `.local` name won't work:
 Android 9 doesn't advertise its hostname over mDNS.
 
+`just persist-adb` sets `persist.adb.tcp.port`, so adb over Wi-Fi comes back after a reboot;
+`just unpersist-adb` undoes it.
+
 **Security:** `ro.adb.secure=0`, so adbd accepts any client without key authorization. While
-TCP adb is on, anyone on the network can get a shell, and with `su`, root. Only enable it on a
-trusted network, and don't make it persistent (`persist.adb.tcp.port`) without fixing that.
+TCP adb is on, anyone on the network can get a shell, and with `su`, root. Persisting it keeps
+that door open all the time, so only do it on a network you trust.
