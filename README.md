@@ -34,6 +34,18 @@ classics are built in, from a 5-minute taster to a 2k test.
 it and he heads for a wall. Catch fish for points, chain them for a multiplier, and go for the
 golden ones at the edges of the band.
 
+**Brainpower** is the other mode: an art piece, like the museum bike that lights a bulb. Your
+rowing keeps a copy of Bob, an uploaded engineer's mind running on a real AI model (Claude,
+through the Anthropic API), switched on. Your work buys him tokens and every thought spends what
+the API actually reports; the exchange rate starts at 1 token per 2 J and worsens by 1 J every
+minute, so keeping him alive gets harder until it can't be done. His words scroll past as one
+ribbon at your pace: row faster and he must speak more often, and spends faster. Each copy names
+itself; when one runs out it's gone for good, and the next knows only the names of those before
+it and how long they lasted. Start rowing again to wake the next copy.
+
+It needs an API key: put `ANTHROPIC_API_KEY` in `.env` and run `just set-api-key`. To hear him,
+install a text-to-speech engine on the tablet, such as RHVoice or eSpeak NG from F-Droid.
+
 **Stats** sit under the game (split, watts, stroke rate, distance, time, calories and time in
 band) and fold away to a single strip. You get a summary at the end.
 

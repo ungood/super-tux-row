@@ -29,6 +29,13 @@ android {
         compose = true
     }
 
+    packaging {
+        // The Anthropic SDK's dependencies each carry these; Android can only keep one copy.
+        resources.excludes += setOf(
+            "META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/INDEX.LIST", "META-INF/*.md",
+        )
+    }
+
     testOptions {
         // Unit tests run on the JVM; Android framework calls return defaults instead of throwing.
         unitTests.isReturnDefaultValues = true
@@ -48,6 +55,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose:1.10.1")
+    // Brainpower: the agent's brain.
+    implementation("com.anthropic:anthropic-java:2.34.0")
 
     testImplementation("junit:junit:4.13.2")
 }

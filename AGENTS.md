@@ -33,6 +33,7 @@ Driving the UI from adb (`adb shell input tap X Y`) works; the screen is 1920×1
 | `model` | Bands, profiles (and their storage), workouts and the built-in library, rowing math |
 | `workout` | `WorkoutRunner`: steps through pieces and rests, time in band, forecasting; `BandTracker` |
 | `game` | `CaveGame`: the cave game's logic, no drawing |
+| `brain` | Brainpower: `BrainEconomy` (joules to tokens, real API usage spent) and `WakePlanner` (pure); `BrainAgent` (Claude API calls via the Anthropic Java SDK, text-to-speech) |
 | `ui` | Compose screens; `GameScene` draws `CaveGame`; overlays |
 
 Keep `model`, `workout`, `game` and `Rower` free of Android framework calls so they stay
@@ -63,6 +64,8 @@ pass it rather than relying on `SystemClock`.
 - Ask before committing or pushing; the user often commits themselves.
 - Add or update tests with logic changes. `captures/row1.jsonl` is a real session; the test
   fixtures can replay it.
+- Brainpower calls the real API and costs real money: every wake is a request. The key lives only
+  in `.env` and the app's private storage (`just set-api-key`); never log or commit it.
 - Check UI changes on the tablet with `just sim` and `just screenshot`, and leave the tablet on
   the real rower afterwards (`just run`).
 - Match the surrounding code: short doc comments on why, not what.

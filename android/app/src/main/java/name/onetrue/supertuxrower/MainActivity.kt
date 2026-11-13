@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,12 +21,15 @@ import name.onetrue.supertuxrower.sensor.RowerSource
 import name.onetrue.supertuxrower.sensor.SimRowerSource
 import name.onetrue.supertuxrower.sensor.UsbRowerSource
 import name.onetrue.supertuxrower.ui.AppTheme
+import name.onetrue.supertuxrower.ui.BrainScreen
+import name.onetrue.supertuxrower.ui.LoadingScreen
 import name.onetrue.supertuxrower.ui.PickerScreen
 import name.onetrue.supertuxrower.ui.ProfileEditor
 import name.onetrue.supertuxrower.ui.ProfilesScreen
 import name.onetrue.supertuxrower.ui.SummaryScreen
 import name.onetrue.supertuxrower.ui.WorkoutScreen
 import name.onetrue.supertuxrower.workout.WorkoutRunner
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     private val rower = Rower()
@@ -71,11 +75,13 @@ class MainActivity : ComponentActivity() {
 }
 
 private sealed interface Screen {
+    data object Loading : Screen
     data object Profiles : Screen
     data class Edit(val profile: Profile?) : Screen
     data object Picker : Screen
     data class Rowing(val runner: WorkoutRunner) : Screen
     data class Summary(val runner: WorkoutRunner) : Screen
+    data object Brain : Screen
 }
 
 @Composable
@@ -89,7 +95,18 @@ private fun App(
     var profiles by remember { mutableStateOf(store.load()) }
     var lastUsed by remember { mutableStateOf(store.lastUsedId) }
     var profile by remember { mutableStateOf<Profile?>(null) }
-    var screen by remember { mutableStateOf<Screen>(if (profiles.isEmpty()) Screen.Edit(null) else Screen.Profiles) }
+    var screen by remember { mutableStateOf<Screen>(Screen.Loading) }
+
+    // Show the loading screen for at least a moment, and until the rower answers or a few seconds pass.
+    LaunchedEffect(Unit) {
+        delay(1500)
+        var waited = 1500L
+        while (!rower.connected && waited < 4000) {
+            delay(100)
+            waited += 100
+        }
+        screen = if (profiles.isEmpty()) Screen.Edit(null) else Screen.Profiles
+    }
 
     fun choose(p: Profile) {
         profile = p
@@ -100,12 +117,13 @@ private fun App(
 
     BackHandler(enabled = screen != Screen.Profiles) {
         screen = when (screen) {
-            is Screen.Rowing, is Screen.Summary -> Screen.Picker
+            is Screen.Rowing, is Screen.Summary, Screen.Brain -> Screen.Picker
             else -> Screen.Profiles
         }
     }
 
     when (val s = screen) {
+        Screen.Loading -> LoadingScreen(rower.status)
         Screen.Profiles -> ProfilesScreen(
             profiles, lastUsed,
             onPick = ::choose,
@@ -135,6 +153,7 @@ private fun App(
             onSimulate = onSimulate,
             onSwitchProfile = { screen = Screen.Profiles },
             onPick = { workout: Workout -> screen = Screen.Rowing(WorkoutRunner(workout, profile!!)) },
+            onBrainpower = { screen = Screen.Brain },
         )
         is Screen.Rowing -> WorkoutScreen(
             s.runner, rower,
@@ -148,5 +167,6 @@ private fun App(
             onDone = { screen = Screen.Summary(s.runner) },
         )
         is Screen.Summary -> SummaryScreen(s.runner, onDone = { screen = Screen.Picker })
+        Screen.Brain -> BrainScreen(rower, sim = source as? SimRowerSource, onDone = { screen = Screen.Picker })
     }
 }

@@ -3,6 +3,9 @@
 
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
+    <!-- Brainpower talks to the Claude API. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- To find Android's launcher for the "Android" button (needed on Android 11+). -->
     <queries>
         <intent>
@@ -15,7 +18,7 @@
         android:label="SuperTuxRow"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
-        android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        android:theme="@style/Theme.SuperTuxRow">
         <activity
             android:name=".MainActivity"
             android:exported="true"

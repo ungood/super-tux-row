@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shown by the system before the app draws anything: the icon's cave, stretched to the screen,
+     with Tux in the middle. The loading screen draws the same, so the hand-over is seamless. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ic_launcher_background" />
+    <item
+        android:width="360dp"
+        android:height="360dp"
+        android:drawable="@drawable/ic_launcher_foreground"
+        android:gravity="center" />
+</layer-list>

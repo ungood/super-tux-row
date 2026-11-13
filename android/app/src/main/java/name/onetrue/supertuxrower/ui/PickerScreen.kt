@@ -40,6 +40,7 @@ fun PickerScreen(
     onSimulate: (Boolean) -> Unit,
     onSwitchProfile: () -> Unit,
     onPick: (Workout) -> Unit,
+    onBrainpower: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(Deep).padding(48.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -55,6 +56,7 @@ fun PickerScreen(
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
+            item(key = "brainpower") { BrainpowerCard(onBrainpower) }
             items(Library.workouts, key = { it.name }) { workout -> WorkoutCard(workout, profile) { onPick(workout) } }
         }
     }
@@ -89,6 +91,20 @@ private fun BandStrip(workout: Workout, profile: Profile) {
             Box(Modifier.weight(work).height(14.dp).background(piece.band?.color() ?: InkMuted))
             val rest = piece.rest.estimatedSeconds().toFloat()
             if (rest > 0) Box(Modifier.weight(rest).height(14.dp).background(Color(0xFF26324A)))
+        }
+    }
+}
+
+/** The way into Brainpower, the art piece, set apart from the workouts. */
+@Composable
+private fun BrainpowerCard(onClick: () -> Unit) {
+    Card(
+        Modifier.height(170.dp).clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF241B05)),
+    ) {
+        Column(Modifier.fillMaxSize().padding(24.dp)) {
+            Text("Brainpower", style = MaterialTheme.typography.headlineMedium, color = Color(0xFFFFD36B))
+            Text("Your rowing powers an AI. It knows it runs on you.", color = InkMuted, style = MaterialTheme.typography.bodyLarge)
         }
     }
 }

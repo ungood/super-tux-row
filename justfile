@@ -108,6 +108,13 @@ enable-updates: _tablet
     {{adb}} shell pm enable com.ergatta.bort.ota
     {{adb}} shell pm enable com.ergatta.bort
 
+# Copy ANTHROPIC_API_KEY from .env into the app's private storage on the tablet (never into the APK)
+[group('tablet')]
+set-api-key: _tablet
+    @test -n "${ANTHROPIC_API_KEY:-}" || (echo "Set ANTHROPIC_API_KEY in .env." >&2; exit 1)
+    @printf '%s' "$ANTHROPIC_API_KEY" | {{adb}} shell "run-as {{package}} sh -c 'mkdir -p files && cat > files/anthropic_api_key'"
+    @echo "API key installed for Brainpower."
+
 # Record a session from a rower plugged into this computer, into captures/
 [group('rower')]
 capture file seconds="60":
