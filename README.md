@@ -23,6 +23,9 @@ Your user needs access to the rower's serial port: membership in the `dialout` g
 |---|---|
 | `docs/protocol.md` | The S4 USB protocol as observed on this unit |
 | `docs/tablet.md` | The Ergatta tablet: hardware, software, adb access |
+| `docs/workout-model.md` | Intensity bands and workout structure |
+| `docs/ergatta-notes.md` | Ideas from the Ergatta app: zones, workout structure, display |
+| `android/app/` | The SuperTuxRower app (prototype): profiles, workouts, stats overlay |
 | `android/sensortest/` | Minimal Android app that reads the sensor over the USB host API |
 | `prototype/tuxswim/` | Desktop prototype of the Tux game (pygame) |
 | `tools/` | Protocol probes: `probe.py`, `scan.py` (readable memory), `log.py` (capture a session) |
@@ -41,14 +44,18 @@ R restarts, Esc quits.
 
 ## Android
 
-Build and install the sensor test app on the tablet (see `docs/tablet.md` for adb access):
+Build and install the app on the tablet (see `docs/tablet.md` for adb access):
 
 ```sh
-gradle -p android :sensortest:assembleDebug
+gradle -p android :app:assembleDebug
 adb connect tablet.example:5555
-adb install -r android/sensortest/build/outputs/apk/debug/sensortest-debug.apk
-adb shell am start -n name.onetrue.supertuxrower.sensortest/.MainActivity
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n name.onetrue.supertuxrower/.MainActivity
 ```
+
+The app uses the rower if it's plugged in, otherwise a simulated rower that rows towards each
+piece's target; "Simulate" on the workout picker switches. `:sensortest` is a bare-bones sensor
+readout built the same way.
 
 The first launch asks for permission to use the sensor; leave "Always open" unticked unless the
 app should take over from Ergatta's when the sensor is plugged in.
