@@ -16,4 +16,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "SuperTuxRower"
 include(":app")
-include(":sensortest")

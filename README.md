@@ -1,61 +1,86 @@
 # SuperTuxRower
 
-Rowing games driven by the WaterRower S4 monitor's USB sensor, starring Tux.
+Rowing workouts as a game. Plug a WaterRower into an Android tablet, pick a workout, and row Tux
+through an ice cave: pull harder and he swims up and faster, ease off and he sinks. Each piece
+of the workout shapes the cave, so rowing the workout as written keeps him clear of the walls.
 
-The goal is an app for the Android tablet that ships with the Ergatta rower, with several
-workout modes (2D Tux, a 2.5D Tux game, YouTube) and a shared stats overlay. For now there is
-a desktop prototype.
+![Tux climbing through the ice cave during a Surge piece](docs/images/cave.png)
 
-## Development environment
+It's built for the tablet that comes with the Ergatta rower (a WaterRower underneath), as a
+replacement for the Ergatta app, but any Android 9+ tablet with USB host support should do.
 
-Tools come from the Nix flake. With direnv, add an `.envrc` containing `use flake`; otherwise:
+## How it plays
+
+**Profiles.** Everyone who rows gets a profile with a reference 2k time. The app opens on the
+last profile used.
+
+**Intensity bands.** Effort is measured against your 2k power, in six bands:
+
+| Band | Rowing name | Effort (% of 2k power) |
+|---|---|---|
+| Rest / Waddle | — | under 50% |
+| Drift | UT2 | 50–65% |
+| Glide | UT1 | 65–75% |
+| Chase | AT | 75–85% |
+| Surge | TR | 85–100% |
+| Launch | AN | over 100% |
+
+**Workouts** are pieces with a goal (time, distance or calories), a target band and an
+optional stroke rate, with rests in between: for example `4 × (1000m Surge, 5:00 rest)`. Ten
+classics are built in, from a 5-minute taster to a 2k test.
+
+**The cave.** Your boat speed carries Tux forward; your power sets how fast he climbs or sinks
+(Glide is level). While you're in the target band he's gently kept in the middle; drift out of
+it and he heads for a wall. Catch fish for points, chain them for a multiplier, and go for the
+golden ones at the edges of the band.
+
+**Stats** sit under the game (split, watts, stroke rate, distance, time, calories and time in
+band) and fold away to a single strip. You get a summary at the end.
+
+## Getting started
+
+You need [Nix](https://nixos.org) with flakes. Everything else (Android SDK, Gradle, JDK, adb,
+just) comes from the flake:
 
 ```sh
-nix develop
+nix develop        # or, with direnv: echo 'use flake' > .envrc && direnv allow
+just               # list the tasks
+just check         # run the tests and build the app
 ```
 
-Your user needs access to the rower's serial port: membership in the `dialout` group, or
-`sudo chmod a+rw /dev/ttyACM0` until the next replug.
+To run it on a tablet, turn on adb over Wi-Fi (see [docs/tablet.md](docs/tablet.md)), then:
 
-## Layout
+```sh
+just connect       # TABLET=host:port to use a different tablet
+just run           # install and start, using the rower if it's plugged in
+just sim           # install and start with a simulated rower, no rowing needed
+just logs          # follow the app's log
+just screenshot    # save what's on screen
+```
 
-| Path | What |
+The first time it starts with the rower plugged in, Android asks whether the app may use the
+"WR USB sensor". Leave "Always open" unticked unless you want it to take over from the Ergatta
+app whenever the rower is plugged in.
+
+The Python tools in `tools/` talk to a rower plugged into your computer; your user needs to be
+in the `dialout` group for that.
+
+## Project layout
+
+| Path | What's there |
 |---|---|
-| `docs/protocol.md` | The S4 USB protocol as observed on this unit |
-| `docs/tablet.md` | The Ergatta tablet: hardware, software, adb access |
-| `docs/workout-model.md` | Intensity bands and workout structure |
-| `docs/ergatta-notes.md` | Ideas from the Ergatta app: zones, workout structure, display |
-| `android/app/` | The SuperTuxRower app (prototype): profiles, workouts, stats overlay |
-| `android/sensortest/` | Minimal Android app that reads the sensor over the USB host API |
-| `prototype/tuxswim/` | Desktop prototype of the Tux game (pygame) |
-| `tools/` | Protocol probes: `probe.py`, `scan.py` (readable memory), `log.py` (capture a session) |
-| `captures/` | Recorded sessions, replayable with `--replay` |
+| `android/app/` | The app (Kotlin, Jetpack Compose) |
+| `android/app/src/test/` | Unit tests |
+| `docs/` | How the rower talks, the workout model, the tablet, design notes |
+| `tools/` | Python scripts for poking at the rower from a computer |
+| `captures/` | Recorded rowing sessions, used by the tests |
+| `justfile` | Tasks: build, test, install, run, simulate |
 
-## Running the prototype
+## Documentation
 
-```sh
-python3 prototype/tuxswim/game.py                                # live rower
-python3 prototype/tuxswim/game.py --keyboard                     # hold space to pull
-python3 prototype/tuxswim/game.py --replay captures/row1.jsonl   # recorded session
-```
+- [docs/protocol.md](docs/protocol.md): the WaterRower S4's USB protocol, as observed
+- [docs/workout-model.md](docs/workout-model.md): bands, pieces and how workouts are judged
+- [docs/tablet.md](docs/tablet.md): the Ergatta tablet's hardware and how to get adb access
+- [docs/ergatta-notes.md](docs/ergatta-notes.md): ideas taken (as concepts only) from the Ergatta app
 
-Keys: Tab toggles the stats panel, Left/Right picks the workout length before starting,
-R restarts, Esc quits.
-
-## Android
-
-Build and install the app on the tablet (see `docs/tablet.md` for adb access):
-
-```sh
-gradle -p android :app:assembleDebug
-adb connect tablet.example:5555
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n name.onetrue.supertuxrower/.MainActivity
-```
-
-The app uses the rower if it's plugged in, otherwise a simulated rower that rows towards each
-piece's target; "Simulate" on the workout picker switches. `:sensortest` is a bare-bones sensor
-readout built the same way.
-
-The first launch asks for permission to use the sensor; leave "Always open" unticked unless the
-app should take over from Ergatta's when the sensor is plugged in.
+Planned work and known issues are in GitHub issues.

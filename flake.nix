@@ -38,10 +38,9 @@
         {
           default = pkgs.mkShell {
             packages = [
-              (pkgs.python3.withPackages (ps: [
-                ps.pygame-ce
-                ps.pyserial
-              ]))
+              # For the protocol tools in tools/.
+              (pkgs.python3.withPackages (ps: [ ps.pyserial ]))
+              pkgs.just
               # adb, for the Android tablet.
               pkgs.android-tools
               android.androidsdk

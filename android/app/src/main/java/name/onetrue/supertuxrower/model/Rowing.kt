@@ -2,6 +2,7 @@ package name.onetrue.supertuxrower.model
 
 import kotlin.math.cbrt
 import kotlin.math.pow
+import kotlin.math.roundToInt
 
 object Rowing {
     /** Measured against the S4's own distance counter; see issue #5. */
@@ -21,8 +22,9 @@ object Rowing {
 /** Time per 500 m as m:ss.s. */
 fun formatSplit(speed: Double): String {
     if (speed < 0.5) return "–:––"
-    val seconds = 500 / speed
-    return "%d:%04.1f".format((seconds / 60).toInt(), seconds % 60)
+    // Round to tenths before splitting off minutes, or 119.99 s shows as 1:60.0.
+    val tenths = (5000 / speed).roundToInt()
+    return "%d:%02d.%d".format(tenths / 600, tenths % 600 / 10, tenths % 10)
 }
 
 fun formatClock(seconds: Double): String {

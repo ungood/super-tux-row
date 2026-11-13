@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- WaterRower S4 "WR USB sensor": 04d8:000a -->
-    <usb-device vendor-id="1240" product-id="10" />
-</resources>

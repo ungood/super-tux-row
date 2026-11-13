@@ -33,7 +33,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val store = ProfileStore(this)
-        useSimulator(!UsbRowerSource.sensorPresent(this))
+        // Launch with `--ez simulate true` (see the justfile's `sim`) to start on the simulated rower.
+        useSimulator(intent.getBooleanExtra(EXTRA_SIMULATE, false) || !UsbRowerSource.sensorPresent(this))
         setContent {
             AppTheme { App(store, rower, source, ::useSimulator) }
         }
@@ -42,6 +43,10 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         source?.stop()
         super.onDestroy()
+    }
+
+    companion object {
+        const val EXTRA_SIMULATE = "simulate"
     }
 
     private fun useSimulator(simulate: Boolean) {
