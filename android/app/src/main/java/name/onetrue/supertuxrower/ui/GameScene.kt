@@ -82,14 +82,15 @@ fun GameScene(game: CaveGame, frame: Long, target: Band?, modifier: Modifier) {
         )
         drawText(count, topLeft = Offset((size.width - count.size.width) / 2, (iceHeight - count.size.height) / 2))
 
-        drawPowerGauge(game, target, top = iceHeight + 24f, bottom = size.height - 24f)
+        drawPowerGauge(game.gauge.toFloat(), target, top = iceHeight + 24f, bottom = size.height - 24f)
     }
 }
 
-/** A slim ladder of the bands on the left edge, with your power and the target band marked. */
-private fun DrawScope.drawPowerGauge(game: CaveGame, target: Band?, top: Float, bottom: Float) {
-    val left = 24f
-    val width = 22f
+/**
+ * A slim ladder of the bands, with your power and the target band marked. [position] runs from 0
+ * (bottom of rest) to 6 (top of the last band), as [Band.position] gives it.
+ */
+internal fun DrawScope.drawPowerGauge(position: Float, target: Band?, top: Float, bottom: Float, left: Float = 24f, width: Float = 22f) {
     val bandHeight = (bottom - top) / Band.entries.size
     Band.entries.forEach { band ->
         val bandTop = bottom - (band.ordinal + 1) * bandHeight
@@ -97,7 +98,6 @@ private fun DrawScope.drawPowerGauge(game: CaveGame, target: Band?, top: Float, 
         drawRect(band.color().copy(alpha = if (lit) 0.95f else 0.3f), Offset(left, bandTop + 1f), Size(width, bandHeight - 2f))
         if (lit) drawRect(Color.White, Offset(left - 3f, bandTop), Size(width + 6f, bandHeight), style = Stroke(width = 2f))
     }
-    val position = game.gauge.toFloat()
     val markerY = bottom - position * bandHeight
     drawPath(
         Path().apply {

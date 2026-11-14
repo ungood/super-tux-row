@@ -91,6 +91,7 @@ fun WorkoutScreen(
                 Modifier.align(Alignment.TopEnd).padding(top = 72.dp, end = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                if (sim != null) SimulatedBadge(Modifier.align(Alignment.CenterVertically))
                 OutlinedButton({ onCompactChange(!compact) }) { Text(if (compact) "Full stats" else "Compact") }
                 OutlinedButton(runner::skip) { Text("Skip") }
                 OutlinedButton(runner::finish) { Text("End") }

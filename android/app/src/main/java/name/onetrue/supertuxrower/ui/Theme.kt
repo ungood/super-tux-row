@@ -1,11 +1,17 @@
 package name.onetrue.supertuxrower.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import name.onetrue.supertuxrower.model.Band
 
@@ -42,5 +48,15 @@ fun AppTheme(content: @Composable () -> Unit) {
             onBackground = Ink,
         ),
         content = content,
+    )
+}
+
+/** Marks screens driven by the simulated rower, so a test run is never mistaken for real rowing. */
+@Composable
+fun SimulatedBadge(modifier: Modifier = Modifier) {
+    Text(
+        "SIMULATED ROWER",
+        modifier.background(Color(0xFF5A2A6E), RoundedCornerShape(4.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
+        color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
     )
 }

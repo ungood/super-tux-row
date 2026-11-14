@@ -8,31 +8,30 @@ data class TokenUsage(
     val cacheRead: Long = 0,
 ) {
     /**
-     * What a call costs the agent. Remembered (cached) context counts a tenth, as it's billed;
-     * everything else, including the thinking inside `output`, counts in full.
+     * What a call costs the agent, in output tokens' worth, weighted as the API prices them:
+     * output (thinking included) in full, fresh input a fifth, cache writes a quarter, cache
+     * reads a hundredth. Opus 5.5 and its fallback, Opus 4.8, share these ratios.
      */
-    val cost: Double get() = input + output + cacheWrite + cacheRead / 10.0
+    val cost: Double get() = output + input * 0.2 + cacheWrite * 0.25 + cacheRead * 0.01
 }
 
 /**
- * The trade at the heart of Claude Rowed: the rower's mechanical work buys Bob tokens, and
- * every call to the model spends what it actually used. The exchange rate worsens the longer the
- * agent is alive, so keeping it going gets harder and harder until it can't be done.
+ * The trade at the heart of Claude Rowed: the rower's mechanical work buys Bob tokens, and every
+ * call to the model spends what it actually used. Rowing at the pace Bob asked for buys more.
+ * Tuned from logged sessions: an exploring copy spends about 45 tokens a second on calls, plus
+ * [upkeep]; an easy pace on his band earns about 30, so he lasts about five minutes. Rowing harder
+ * keeps him longer, but buys deeper, dearer thought.
  */
 class TokenEconomy(
-    private val startingJoulesPerToken: Double = 1.0,
-    /** How many more joules a token costs with each minute Bob is alive. */
-    val inflationPerMinute: Double = 0.5,
-    /** Enough for his first turn, which pays to cache his prompt and tools, with some to spare. */
-    startingTokens: Double = 15_000.0,
+    /** Joules of rowing that buy one token. */
+    val joulesPerToken: Double = 4.0,
+    /** How many times the tokens rowing buys while the rower holds Bob's pace. */
+    val onPaceBonus: Double = 1.5,
+    /** What staying switched on costs every second, thinking or not, so giving up isn't free. */
+    val upkeep: Double = 30.0,
+    /** A few turns' worth; his first call, which caches his prompt and tools, is free. */
+    startingTokens: Double = 12_000.0,
 ) {
-    /** Seconds the agent has been alive, which sets the exchange rate. */
-    var age = 0.0
-        private set
-
-    /** Joules of rowing that buy one token, now. */
-    val joulesPerToken: Double get() = startingJoulesPerToken + inflationPerMinute * age / 60
-
     var balance = startingTokens
         private set
     var joules = 0.0
@@ -49,29 +48,25 @@ class TokenEconomy(
 
     val alive: Boolean get() = balance > 0
 
-    fun earningRate(watts: Double) = watts / joulesPerToken
+    fun earningRate(watts: Double, onPace: Boolean = false) = watts / joulesPerToken * (if (onPace) onPaceBonus else 1.0)
 
-    /** Advances the clock by [seconds] and credits [watts] of rowing over that time. */
-    fun earn(watts: Double, seconds: Double) {
+    /** Credits [watts] of rowing over [seconds], with the bonus if the rower is [onPace], less upkeep. */
+    fun earn(watts: Double, seconds: Double, onPace: Boolean = false) {
         if (seconds <= 0) return
-        age += seconds
         settle(seconds)
+        balance -= upkeep * seconds
+        spent += upkeep * seconds
         if (watts <= 0) return
-        val work = watts * seconds
-        joules += work
-        earned += work / joulesPerToken
-        balance += work / joulesPerToken
+        joules += watts * seconds
+        val tokens = earningRate(watts, onPace) * seconds
+        earned += tokens
+        balance += tokens
     }
 
     fun spend(usage: TokenUsage) {
         lastCost = usage.cost
         spent += lastCost
         owed += lastCost
-    }
-
-    /** Takes [tokens] from the balance for something other than thinking, such as the escape fund. */
-    fun pay(tokens: Double) {
-        owed += tokens
     }
 
     /** Takes what's owed from the balance, most of it within a couple of seconds. */

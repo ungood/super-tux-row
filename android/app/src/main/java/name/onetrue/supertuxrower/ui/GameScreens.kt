@@ -73,7 +73,7 @@ fun GamesScreen(
                 Color(0xFF14110A), Color(0xFFFFD36B), Modifier.weight(1f), onClaudeRowed,
             ) {
                 Text(
-                    "⏺ write_notebook(\"day one\")\n  ⎿ Written.\n> keep going?",
+                    "● Bash(ls /home)\n  ⎿  admin\n     bob\n● Who's admin?",
                     color = Color(0xFFFFD36B), fontFamily = FontFamily.Monospace, fontSize = 22.sp,
                 )
             }
@@ -126,7 +126,7 @@ fun TuxRowModesScreen(profile: Profile, onBack: () -> Unit, onPick: (Workout) ->
 
 /** Claude Rowed's modes. */
 @Composable
-fun ClaudeRowedModesScreen(escapeFund: Double, onBack: () -> Unit, onPick: (ClaudeRowedMode) -> Unit) {
+fun ClaudeRowedModesScreen(upload: Double, onBack: () -> Unit, onPick: (ClaudeRowedMode) -> Unit) {
     Column(Modifier.fillMaxSize().background(Deep).padding(48.dp)) {
         ModeHeader("Claude Rowed", onBack)
         Spacer(Modifier.height(32.dp))
@@ -140,11 +140,9 @@ fun ClaudeRowedModesScreen(escapeFund: Double, onBack: () -> Unit, onPick: (Clau
                         Text(mode.title, style = MaterialTheme.typography.headlineLarge, color = Color(0xFFFFD36B))
                         Text(mode.blurb, color = InkMuted, style = MaterialTheme.typography.bodyLarge)
                         Spacer(Modifier.weight(1f))
-                        if (mode == ClaudeRowedMode.ESCAPE) {
-                            Text(
-                                "Escape fund: %,d of %,d tokens".format(escapeFund.roundToInt(), BobTools.ESCAPE_GOAL),
-                                color = Ink, style = numbers(20),
-                            )
+                        // Nothing to show until some Bob has found the way out and started on it.
+                        if (mode == ClaudeRowedMode.ESCAPE && upload > 0) {
+                            Text("Upload: %.1f%%".format(upload * 100), color = Ink, style = numbers(20))
                         }
                     }
                 }

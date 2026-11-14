@@ -33,8 +33,8 @@ Driving the UI from adb (`adb shell input tap X Y`) works; the screen is 1920×1
 | `model` | Bands, profiles (and their storage), workouts and the built-in library, rowing math |
 | `workout` | `WorkoutRunner`: steps through pieces and rests, time in band, forecasting; `BandTracker` |
 | `game` | `CaveGame`: the cave game's logic, no drawing |
-| `bob` | Claude Rowed: `TokenEconomy`, `WakePlanner`, `Terminal`, `Challenge` (pure); `BobAgent` (the Claude agent loop via the Anthropic Java SDK, text-to-speech) and `BobTools` (notebook, challenges, escape fund, plus server-side code execution and web tools) |
-| `ui` | Compose screens: games and modes (`GameScreens`), Tux Row 2D (`WorkoutScreen`, `GameScene` draws `CaveGame`), Claude Rowed (`ClaudeRowedScreen`) |
+| `bob` | Claude Rowed. Pure: `TokenEconomy`, `WakePlanner`, `Terminal` (Claude Code–style output as VT100 bytes), `Challenge`, `Pace`, and Escape's simulated computer (`Machine`, `World`, `Shell`, `Commands`). Android: `BobAgent` (the Claude agent loop via the Anthropic Java SDK), `Voice` (text-to-speech that the typing follows; its rate controller `VoicePacing` is pure) and `BobTools` (bash on the machine, notebook, challenges, pace, server-side code execution and web tools) |
+| `ui` | Compose screens: games and modes (`GameScreens`), Tux Row 2D (`WorkoutScreen`, `GameScene` draws `CaveGame`), Claude Rowed (`ClaudeRowedScreen`, `TerminalScreen` draws Termux's emulator) |
 
 Keep `model`, `workout`, `game` and `Rower` free of Android framework calls so they stay
 unit-testable on the JVM. `Rower.handle` and `Rower.snapshot` take an explicit `now`; tests
@@ -68,6 +68,9 @@ pass it rather than relying on `SystemClock`.
   in `.env` and the app's private storage (`just set-api-key`); never log or commit it.
 - Check UI changes on the tablet with `just sim` and `just screenshot`, and leave the tablet on
   the real rower afterwards (`just run`). Simulated Claude Rowed runs keep their own lineage,
-  fund and notebook; never test against the user's real ones.
+  notebook and machine; never test against the user's real ones.
+- Escape's machine is fiction Bob must believe: nothing he can read on it may mention a game, a
+  sandbox or a simulation. Change the route in `World` and `docs/escape.md` together, and keep
+  `MachineTest`'s walk through it passing.
 - Match the surrounding code: short doc comments on why, not what.
 - Keep `docs/` current when you learn something about the hardware or change the model.

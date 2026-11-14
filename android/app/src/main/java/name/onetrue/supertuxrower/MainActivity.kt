@@ -170,7 +170,7 @@ private fun App(
             onPick = { workout: Workout -> screen = Screen.Rowing(WorkoutRunner(workout, profile!!)) },
         )
         Screen.ClaudeRowedModes -> ClaudeRowedModesScreen(
-            BobTools.escapeFund(LocalContext.current),
+            BobTools.uploadProgress(LocalContext.current, simulated = source is SimRowerSource),
             onBack = { screen = Screen.Games },
             onPick = { screen = Screen.ClaudeRowed(it) },
         )
@@ -186,6 +186,8 @@ private fun App(
             onDone = { screen = Screen.Summary(s.runner) },
         )
         is Screen.Summary -> SummaryScreen(s.runner, onDone = { screen = Screen.TuxRowModes })
-        is Screen.ClaudeRowed -> ClaudeRowedScreen(rower, sim = source as? SimRowerSource, s.mode, onDone = { screen = Screen.ClaudeRowedModes })
+        is Screen.ClaudeRowed -> ClaudeRowedScreen(
+            rower, sim = source as? SimRowerSource, s.mode, profile!!.twoKWatts, onDone = { screen = Screen.ClaudeRowedModes },
+        )
     }
 }

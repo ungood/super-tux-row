@@ -34,6 +34,8 @@ android {
         resources.excludes += setOf(
             "META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/INDEX.LIST", "META-INF/*.md",
         )
+        // Termux's native library starts shell processes; we only use its emulator and renderer.
+        jniLibs.excludes += "**/libtermux.so"
     }
 
     testOptions {
@@ -56,7 +58,8 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose:1.10.1")
     // Brainpower: the agent's brain.
-    implementation("com.anthropic:anthropic-java:2.34.0")
+    implementation("com.anthropic:anthropic-java:2.75.0")
+    implementation("com.github.termux.termux-app:terminal-view:v0.118.3")
 
     testImplementation("junit:junit:4.13.2")
 }

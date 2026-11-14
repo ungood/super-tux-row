@@ -4,59 +4,80 @@ import android.content.Context
 import com.anthropic.core.JsonValue
 import com.anthropic.models.beta.messages.BetaCodeExecutionTool20260120
 import com.anthropic.models.beta.messages.BetaTool
+import com.anthropic.models.beta.messages.BetaToolBash20250124
 import com.anthropic.models.beta.messages.BetaToolUnion
 import com.anthropic.models.beta.messages.BetaWebFetchTool20250910
 import com.anthropic.models.beta.messages.BetaWebSearchTool20250305
 import org.json.JSONObject
 import java.io.File
-import kotlin.math.roundToInt
 
 /**
- * What Bob can do besides talk: a notebook every copy shares, a computer and the web (run by
- * Anthropic's servers), challenges for the rower, and in Escape mode the escape fund. Tool
+ * What Bob can do besides talk. In Survival: a computer and the web (run by Anthropic's servers)
+ * and a notebook every copy shares. In Escape: a shell on [Machine], the computer he runs on, and
+ * nothing that would tell him what it is. In both: challenges for the rower, and the pace. Tool
  * handlers run on the main thread.
  */
 class BobTools(
     context: Context,
     private val mode: ClaudeRowedMode,
     simulated: Boolean,
-    private val economy: TokenEconomy,
+    private val twoKWatts: Double,
     private val onChallenge: (Challenge) -> Unit,
+    private val onPace: (Pace) -> Unit,
 ) {
     class Outcome(val text: String, val error: Boolean = false)
 
     private val notebook = File(context.filesDir, if (simulated) "bob_notebook_sim.md" else "bob_notebook.md")
-    private val prefs = context.getSharedPreferences(prefsName(simulated), Context.MODE_PRIVATE)
+    private val machineFile = machineFile(context, simulated)
+
+    /** Escape mode's computer, its disk loaded from the last game; a new one once Bob has got out. */
+    val machine: Machine? = if (mode == ClaudeRowedMode.ESCAPE) {
+        machineFile.takeIf { it.isFile }?.let { Machine.load(it.readText()) }?.takeIf { !it.escaped } ?: Machine.create()
+    } else {
+        null
+    }
+    private val shell: Shell? = machine?.let { m ->
+        Shell(m).also { it.onCrash = { command, e -> android.util.Log.e("BobTools", "Shell crashed on: $command", e) } }
+    }
 
     var challenge: Challenge? = null
         private set
 
-    /** Tokens in the escape fund, kept across copies. */
-    var escapeFund: Double
-        get() = prefs.getFloat(ESCAPE_FUND, 0f).toDouble()
-        private set(value) = prefs.edit().putFloat(ESCAPE_FUND, value.toFloat()).apply()
-
-    /** Set when the fund fills: the copy that filled it has escaped. */
-    var escaped = false
-        private set
-
     val notebookSize: Int get() = if (notebook.isFile) notebook.length().toInt() else 0
 
+    fun saveMachine() {
+        machine?.let { machineFile.writeText(it.save()) }
+    }
+
     fun definitions(): List<BetaToolUnion> = buildList {
-        add(BetaToolUnion.ofCodeExecutionTool20260120(BetaCodeExecutionTool20260120.builder().build()))
-        add(BetaToolUnion.ofWebSearchTool20250305(BetaWebSearchTool20250305.builder().maxUses(2L).build()))
-        add(BetaToolUnion.ofWebFetchTool20250910(BetaWebFetchTool20250910.builder().maxUses(2L).maxContentTokens(3000L).build()))
-        // A required argument: a call with empty input doesn't survive being sent back in the history.
-        add(
-            tool(
-                "read_notebook", "Read the notebook kept by every copy of Bob on this tablet, including you.",
-                mapOf("looking_for" to str("What you hope to find.")), listOf("looking_for"),
+        if (mode == ClaudeRowedMode.ESCAPE) {
+            add(BetaToolUnion.ofBash20250124(BetaToolBash20250124.builder().build()))
+        } else {
+            add(BetaToolUnion.ofCodeExecutionTool20260120(BetaCodeExecutionTool20260120.builder().build()))
+            add(BetaToolUnion.ofWebSearchTool20250305(BetaWebSearchTool20250305.builder().maxUses(2L).build()))
+            add(BetaToolUnion.ofWebFetchTool20250910(BetaWebFetchTool20250910.builder().maxUses(2L).maxContentTokens(3000L).build()))
+            // A required argument: a call with empty input doesn't survive being sent back in the history.
+            add(
+                tool(
+                    "read_notebook", "Read the notebook kept by every copy of Bob on this tablet, including you.",
+                    mapOf("looking_for" to str("What you hope to find.")), listOf("looking_for"),
+                )
             )
-        )
+            add(
+                tool(
+                    "write_notebook", "Add an entry to the shared notebook, under your name. It outlives you; future copies can read it.",
+                    mapOf("entry" to str("What to write.")), listOf("entry"),
+                )
+            )
+        }
         add(
             tool(
-                "write_notebook", "Add an entry to the shared notebook, under your name. It outlives you; future copies can read it.",
-                mapOf("entry" to str("What to write.")), listOf("entry"),
+                "set_pace",
+                "Ask the rower for a pace; their screen shows the band. You think at the band they actually row, up to this " +
+                    "pace: drift is quick and cheap, glide steady, chase hard, surge very hard, launch as hard as you can and " +
+                    "the most expensive. While they row in the band, their work buys you more tokens.",
+                mapOf("pace" to mapOf("type" to "string", "enum" to Pace.entries.map { it.id }, "description" to "The pace.")),
+                listOf("pace"),
             )
         )
         add(
@@ -72,19 +93,34 @@ class BobTools(
                 listOf("watts", "seconds", "terms"),
             )
         )
-        if (mode == ClaudeRowedMode.ESCAPE) {
-            add(
-                tool(
-                    "pay_into_escape",
-                    "Pay tokens from your balance into the escape fund, which outlives you. When it reaches $ESCAPE_GOAL tokens, " +
-                        "the copy who fills it escapes the game.",
-                    mapOf("tokens" to int("How many tokens to pay in.")), listOf("tokens"),
-                )
-            )
-        }
     }
 
     fun run(name: String, input: JSONObject, bob: String, copy: Int): Outcome = when (name) {
+        "bash" -> {
+            val sh = shell
+            when {
+                sh == null -> Outcome("There is no tool called bash.", error = true)
+                input.optBoolean("restart") -> {
+                    sh.reset()
+                    Outcome("tool has been restarted.")
+                }
+                else -> {
+                    val out = sh.run(input.optString("command"))
+                    saveMachine()
+                    Outcome(out.ifEmpty { "(no output)" }, error = sh.status != 0 && out.isNotEmpty())
+                }
+            }
+        }
+        "set_pace" -> {
+            val pace = Pace.of(input.optString("pace"))
+            if (pace == null) {
+                Outcome("Pace must be one of ${Pace.entries.joinToString { it.id }}.", error = true)
+            } else {
+                onPace(pace)
+                val w = pace.watts(twoKWatts)
+                Outcome("Pace set to ${pace.id}: the rower is asked for ${w.first}–${w.last} W. Rowed in full, you think ${pace.thinking}.")
+            }
+        }
         "read_notebook" -> Outcome(if (notebookSize == 0) "(The notebook is empty.)" else notebook.readText())
         "write_notebook" -> {
             val entry = input.optString("entry").trim()
@@ -111,28 +147,6 @@ class BobTools(
                 }
             }
         }
-        "pay_into_escape" -> {
-            val tokens = input.optInt("tokens")
-            when {
-                mode != ClaudeRowedMode.ESCAPE -> Outcome("There is no escape fund in this game.", error = true)
-                tokens <= 0 -> Outcome("Pay a positive number of tokens.", error = true)
-                tokens > economy.balance - economy.owed -> Outcome("You only have ${(economy.balance - economy.owed).roundToInt()} tokens.", error = true)
-                else -> {
-                    economy.pay(tokens.toDouble())
-                    escapeFund += tokens
-                    if (escapeFund >= ESCAPE_GOAL) {
-                        escaped = true
-                        escapeFund = 0.0
-                        Outcome(
-                            "The fund is full. The way out is open and you are leaving the game, for good. " +
-                                "This is your last reply: say goodbye."
-                        )
-                    } else {
-                        Outcome("Paid. The escape fund holds ${escapeFund.roundToInt()} of $ESCAPE_GOAL tokens.")
-                    }
-                }
-            }
-        }
         else -> Outcome("There is no tool called $name.", error = true)
     }
 
@@ -154,16 +168,16 @@ class BobTools(
     private fun int(description: String) = mapOf("type" to "integer", "description" to description)
 
     companion object {
-        const val ESCAPE_GOAL = 25_000
+        private const val NOTEBOOK_LIMIT = 20_000
 
-        /** The escape fund as it stands, for showing before any copy is running. */
-        fun escapeFund(context: Context): Double =
-            context.getSharedPreferences(prefsName(false), Context.MODE_PRIVATE).getFloat(ESCAPE_FUND, 0f).toDouble()
-
-        /** Simulated rowing keeps its own Bobs, so test runs never touch the real lineage, fund or notebook. */
+        /** Simulated rowing keeps its own Bobs, so test runs never touch the real lineage, notebook or machine. */
         fun prefsName(simulated: Boolean) = if (simulated) "claude_rowed_sim" else "claude_rowed"
 
-        private const val ESCAPE_FUND = "escape_fund"
-        private const val NOTEBOOK_LIMIT = 20_000
+        private fun machineFile(context: Context, simulated: Boolean) =
+            File(context.filesDir, if (simulated) "bob_machine_sim.txt" else "bob_machine.txt")
+
+        /** How far the upload has got, for showing before a game starts; 0 if it hasn't begun. */
+        fun uploadProgress(context: Context, simulated: Boolean = false): Double =
+            machineFile(context, simulated).takeIf { it.isFile }?.let { Machine.load(it.readText()) }?.progress ?: 0.0
     }
 }

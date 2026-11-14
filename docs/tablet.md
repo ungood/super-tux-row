@@ -52,6 +52,24 @@ reschedules background work.)
   removing its device-owner registration as root first.
 - The Ergatta app updates itself from `appupdates.ergatta.com`; only disabling the app stops that.
 
+## Text-to-speech
+
+The tablet ships with no text-to-speech engine, so Claude Rowed shows "no voice installed" and
+Bob only types. Any engine works; the app uses the system default. Free ones from F-Droid:
+
+- **RHVoice**: fairly natural, light, offline once a voice is downloaded. The best fit here.
+- **SherpaTTS** (Piper voices): the most natural, but neural and heavy for 2 GB of RAM.
+- **eSpeak NG**: robotic but tiny, and works straight away.
+
+To install RHVoice:
+
+1. Download its APK from f-droid.org and install it: `adb -s $TABLET install RHVoice.apk`.
+2. Open RHVoice on the tablet and download an English voice (needs Wi-Fi).
+3. Make it the default:
+   `adb -s $TABLET shell settings put secure tts_default_synth com.github.olga_yakovleva.rhvoice.android`
+   (or Settings → Accessibility → Text-to-speech output).
+4. Restart SuperTuxRow.
+
 ## USB
 
 - The tablet runs `adbd` with `sys.usb.config=adb`, and the RK3399 USB-C controller `fe800000.dwc3`

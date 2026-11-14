@@ -8,7 +8,7 @@ of the workout shapes the cave, so rowing the workout as written keeps him clear
 
 There's a second game too: **Claude Rowed**, where your rowing keeps a live AI switched on.
 
-![Claude Rowed: Bob talks, reads the notebook and pays into the escape fund while you row](docs/images/claude-rowed.png)
+![Claude Rowed's Escape mode: Bob reads the admin's shell history on the computer he wakes up on](docs/images/claude-rowed.png)
 
 It's built for the tablet that comes with the Ergatta rower (a WaterRower underneath), as a
 replacement for the Ergatta app, but any Android 9+ tablet with USB host support should do.
@@ -41,15 +41,24 @@ golden ones at the edges of the band.
 **Claude Rowed** is the other game: an art piece, like the museum bike that lights a bulb. Your
 rowing keeps a copy of Bob, an uploaded engineer's mind running on a real AI model (Claude Opus,
 through the Anthropic API), switched on. Your work buys him tokens and every model call spends
-what the API reports; the exchange rate worsens every minute, so keeping him alive gets harder
-until it can't be done. Everything he says and does types out in a terminal at your pace. He has
-a computer of his own (a code sandbox), the web, a notebook every copy shares, and challenges he
-can set you on his own terms. Each copy names itself; when one runs out it's gone for good, and
-the next knows only the names before it, how long they lasted, and the notebook. Its modes are
-**Survival** and **Escape**, where an escape fund that outlives each copy is the only way out.
+what the API reports. Thinking costs more than an easy pace earns, so a copy lasts about five
+minutes. Everything he says and does types out in a terminal at your pace. He asks you for a
+pace, shown on a gauge; how hard he thinks follows the band you actually row, up to that pace,
+and rowing in his band buys him half as many tokens again. He can set you challenges on his own
+terms, too. When he runs out, his last words stay on screen and you can switch on a new copy.
+
+It has two modes:
+
+- **Survival**: each copy names itself and has a code sandbox, the web and a notebook every copy
+  shares. When one runs out it's gone for good; the next knows only the names before it, how long
+  they lasted, and the notebook.
+- **Escape**: Bob wakes on a small Linux computer with a shell and is told nothing else. The
+  computer is simulated, but he isn't told that. There's a way off it, which takes digging, more
+  than one copy of him, and a lot of your rowing. The route is in
+  [docs/escape.md](docs/escape.md), which spoils it.
 
 It needs an API key: put `ANTHROPIC_API_KEY` in `.env` and run `just set-api-key`. To hear him,
-install a text-to-speech engine on the tablet, such as RHVoice or eSpeak NG from F-Droid.
+install a text-to-speech engine on the tablet; see [docs/tablet.md](docs/tablet.md#text-to-speech).
 
 **Stats** sit under the game (split, watts, stroke rate, distance, time, calories and time in
 band) and fold away to a single strip. You get a summary at the end.
