@@ -15,7 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import name.onetrue.supertuxrower.bob.BobTools
-import name.onetrue.supertuxrower.bob.ClaudeRowedMode
+import name.onetrue.supertuxrower.bob.BobMode
 import name.onetrue.supertuxrower.model.Profile
 import name.onetrue.supertuxrower.model.ProfileStore
 import name.onetrue.supertuxrower.model.Workout
@@ -24,9 +24,9 @@ import name.onetrue.supertuxrower.sensor.RowerSource
 import name.onetrue.supertuxrower.sensor.SimRowerSource
 import name.onetrue.supertuxrower.sensor.UsbRowerSource
 import name.onetrue.supertuxrower.ui.AppTheme
-import name.onetrue.supertuxrower.ui.ClaudeRowedScreen
+import name.onetrue.supertuxrower.ui.BobScreen
 import name.onetrue.supertuxrower.ui.LoadingScreen
-import name.onetrue.supertuxrower.ui.ClaudeRowedModesScreen
+import name.onetrue.supertuxrower.ui.BobModesScreen
 import name.onetrue.supertuxrower.ui.GamesScreen
 import name.onetrue.supertuxrower.ui.TuxRowModesScreen
 import name.onetrue.supertuxrower.ui.ProfileEditor
@@ -85,10 +85,10 @@ private sealed interface Screen {
     data class Edit(val profile: Profile?) : Screen
     data object Games : Screen
     data object TuxRowModes : Screen
-    data object ClaudeRowedModes : Screen
+    data object BobModes : Screen
     data class Rowing(val runner: WorkoutRunner) : Screen
     data class Summary(val runner: WorkoutRunner) : Screen
-    data class ClaudeRowed(val mode: ClaudeRowedMode) : Screen
+    data class Bob(val mode: BobMode) : Screen
 }
 
 @Composable
@@ -125,8 +125,8 @@ private fun App(
     BackHandler(enabled = screen != Screen.Profiles) {
         screen = when (screen) {
             is Screen.Rowing, is Screen.Summary -> Screen.TuxRowModes
-            is Screen.ClaudeRowed -> Screen.ClaudeRowedModes
-            Screen.TuxRowModes, Screen.ClaudeRowedModes -> Screen.Games
+            is Screen.Bob -> Screen.BobModes
+            Screen.TuxRowModes, Screen.BobModes -> Screen.Games
             else -> Screen.Profiles
         }
     }
@@ -162,17 +162,17 @@ private fun App(
             onSimulate = onSimulate,
             onSwitchProfile = { screen = Screen.Profiles },
             onTuxRow = { screen = Screen.TuxRowModes },
-            onClaudeRowed = { screen = Screen.ClaudeRowedModes },
+            onBob = { screen = Screen.BobModes },
         )
         Screen.TuxRowModes -> TuxRowModesScreen(
             profile!!,
             onBack = { screen = Screen.Games },
             onPick = { workout: Workout -> screen = Screen.Rowing(WorkoutRunner(workout, profile!!)) },
         )
-        Screen.ClaudeRowedModes -> ClaudeRowedModesScreen(
+        Screen.BobModes -> BobModesScreen(
             BobTools.uploadProgress(LocalContext.current, simulated = source is SimRowerSource),
             onBack = { screen = Screen.Games },
-            onPick = { screen = Screen.ClaudeRowed(it) },
+            onPick = { screen = Screen.Bob(it) },
         )
         is Screen.Rowing -> WorkoutScreen(
             s.runner, rower,
@@ -186,8 +186,8 @@ private fun App(
             onDone = { screen = Screen.Summary(s.runner) },
         )
         is Screen.Summary -> SummaryScreen(s.runner, onDone = { screen = Screen.TuxRowModes })
-        is Screen.ClaudeRowed -> ClaudeRowedScreen(
-            rower, sim = source as? SimRowerSource, s.mode, profile!!.twoKWatts, onDone = { screen = Screen.ClaudeRowedModes },
+        is Screen.Bob -> BobScreen(
+            rower, sim = source as? SimRowerSource, s.mode, profile!!.twoKWatts, onDone = { screen = Screen.BobModes },
         )
     }
 }

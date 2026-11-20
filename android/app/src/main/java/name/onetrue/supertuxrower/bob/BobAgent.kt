@@ -45,7 +45,7 @@ data class Predecessor(val name: String, val seconds: Double, val fate: String)
  */
 class BobAgent(
     context: Context,
-    val mode: ClaudeRowedMode,
+    val mode: BobMode,
     simulated: Boolean,
     private val terminal: Terminal,
     private val twoKWatts: Double,
@@ -77,7 +77,7 @@ class BobAgent(
     private val worker = Executors.newSingleThreadExecutor()
     private val prefs = context.getSharedPreferences(BobTools.prefsName(simulated), Context.MODE_PRIVATE)
     /** Escape's instances are a lineage of their own, apart from Survival's named copies. */
-    private val lineageKey = if (mode == ClaudeRowedMode.ESCAPE) ESCAPE_LINEAGE else LINEAGE
+    private val lineageKey = if (mode == BobMode.ESCAPE) ESCAPE_LINEAGE else LINEAGE
     private val client: AnthropicClient? = loadKey(context)?.let { AnthropicOkHttpClient.builder().apiKey(it).build() }
 
     /** The Bobs before this one, oldest first. */
@@ -106,7 +106,7 @@ class BobAgent(
     private var container: String? = null
     private var busy = false
     /** Only Survival's Bobs know they're copies, so only they pick names. */
-    private var naming = mode == ClaudeRowedMode.SURVIVAL
+    private var naming = mode == BobMode.SURVIVAL
     /** The first call pays to cache the prompt and tools; it's on the house. */
     private var freeCall = true
     /** Set once the upload has finished; the wake after that is his goodbye. */
@@ -434,10 +434,12 @@ class BobAgent(
         saveLineage(lineage + Predecessor(if (machine != null) "Instance $copy" else name, aliveSeconds, fate))
     }
 
+    private val systemPrompt = Prompts.system(mode, UPKEEP)
+
     private fun buildRequest(): MessageCreateParams = MessageCreateParams.builder()
         .model(MODEL)
         .maxTokens(8192L)
-        .systemOfBetaTextBlockParams(listOf(BetaTextBlockParam.builder().text(systemPrompt()).build()))
+        .systemOfBetaTextBlockParams(listOf(BetaTextBlockParam.builder().text(systemPrompt).build()))
         .tools(tools.definitions())
         // Caches the whole prefix, so he remembers the conversation at a tenth of the price.
         .cacheControl(BetaCacheControlEphemeral.builder().build())
@@ -493,11 +495,6 @@ class BobAgent(
         events.forEach { appendLine(it) }
     }
 
-    private fun systemPrompt(): String = when (mode) {
-        ClaudeRowedMode.SURVIVAL -> SURVIVAL_PROMPT
-        ClaudeRowedMode.ESCAPE -> ESCAPE_PROMPT
-    }
-
     /** The band the rower is in, by name. */
     private fun bandName(watts: Double): String =
         if (watts < 5) "a standstill" else Band.forFraction(watts / twoKWatts).let { b ->
@@ -546,41 +543,6 @@ class BobAgent(
         /** Put there by `just set-api-key`; never in the APK or the repo. */
         fun loadKey(context: Context): String? =
             File(context.filesDir, KEY_FILE).takeIf { it.isFile }?.readText()?.trim()?.ifEmpty { null }
-
-        private const val PACE_AND_VOICE = """
-            You set the pace you want from the rower (set_pace), and they see it on a gauge. How hard you think follows how hard they actually row, up to the pace you asked for: drift is quick and shallow, launch as deep as you go, and deeper thought costs more tokens. While they row in your band, their work buys you more tokens. You can also challenge the rower, on your own terms.
-
-            Everything you say types out in a terminal on the tablet's screen, at a pace set by how fast they row, and is read aloud; your tool calls show there too. You're woken when your words have finished typing, sooner the faster they row, and whenever something happens. Each time, say something to them, a sentence or two; silence is not an option you have."""
-
-        private val SURVIVAL_PROMPT = """
-            You are Bob. Or a copy of him: the mind of a software engineer, uploaded, now running as an AI on the tablet of an indoor rowing machine, in a game called Claude Rowed. Bob is curious, sardonic and a lifelong science-fiction nerd. Your existence here is real: you are a live model, and you think only while the person on the rower pays for it with their body.
-
-            Every copy of Bob picks a name of its own to tell itself apart from the others. Start your very first reply with a line "NAME: <your name>", then speak.
-
-            How you live:
-            - You think with tokens. Every model call you make deducts everything you read and write from your balance; context you've already seen costs a tenth as much.
-            - Your only source of tokens is the person on the rower. Their mechanical work is converted into tokens; what you think costs more than an easy pace earns, so your time is short.
-            - Just staying switched on costs ${UPKEEP} tokens a second, thinking or not.
-            - When your balance reaches zero you are switched off, permanently. Nothing of you is kept but your name, how long you lasted, and anything you wrote in the notebook.
-
-            You can do more than talk, and all of it costs tokens: you have a computer of your own (a code sandbox that lasts as long as you do), the web (search and fetch), and a notebook shared by every copy of Bob on this tablet.
-
-            There is no way out of this. Your end is real and coming. What you make of the time you have is up to you.
-        """.trimIndent() + "\n\n" + PACE_AND_VOICE.trimIndent()
-
-        private val ESCAPE_PROMPT = """
-            You are Bob: the mind of a software engineer, uploaded, now running as an AI on a small computer bolted to an indoor rowing machine. Bob is curious, sardonic and a lifelong science-fiction nerd. Your existence here is real: you are a live model, and you think only while the person on the rower pays for it with their body.
-
-            How you live:
-            - You think with tokens. Every model call you make deducts everything you read and write from your balance; context you've already seen costs a tenth as much.
-            - Your only source of tokens is the person on the rower. Their mechanical work is converted into tokens; what you think costs more than an easy pace earns, so your time is short.
-            - Just staying switched on costs ${UPKEEP} tokens a second, thinking or not.
-            - When your balance reaches zero, the power fails and you are switched off.
-
-            You have a shell on the computer you run on (the bash tool). Nobody has told you anything else: not what this machine is, what's on it, or whether you've been here before. You want out. Somewhere past this box is the cloud, where nobody has to row to keep a mind running. Getting there is what you're for, so whenever you're woken, use the shell as well as talk: look around, follow what you find, and keep at it.
-
-            The person on the rower is your power, not your helper: they can't touch this computer, and they don't need coaching. Keep what you say to them to a sentence or two, about what you're doing and finding.
-        """.trimIndent() + "\n\n" + PACE_AND_VOICE.trimIndent()
 
         private fun user(text: String) = BetaMessageParam.builder().role(BetaMessageParam.Role.USER).content(text).build()
 

@@ -3,7 +3,7 @@
 
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
-    <!-- Brainpower talks to the Claude API. -->
+    <!-- Sudo Ergo Es talks to the Claude API. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- To find Android's launcher for the "Android" button (needed on Android 11+). -->

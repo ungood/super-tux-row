@@ -48,7 +48,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import name.onetrue.supertuxrower.bob.BobAgent
-import name.onetrue.supertuxrower.bob.ClaudeRowedMode
+import name.onetrue.supertuxrower.bob.BobMode
 import name.onetrue.supertuxrower.bob.Pace
 import name.onetrue.supertuxrower.bob.Terminal
 import name.onetrue.supertuxrower.model.Band
@@ -65,12 +65,12 @@ private val Screen = Color(0xFF07090E)
 private val Mono = TextStyle(fontFamily = FontFamily.Monospace)
 
 /**
- * Claude Rowed: the rower's work keeps a copy of Bob switched on, and he knows. Everything he says
+ * Sudo Ergo Es: the rower's work keeps a copy of Bob switched on, and he knows. Everything he says
  * and does types out in a terminal at the rower's pace, beside a gauge of the pace he's asked for.
  * When he's gone, his last words stay up until you switch on a new copy or leave.
  */
 @Composable
-fun ClaudeRowedScreen(rower: Rower, sim: SimRowerSource?, mode: ClaudeRowedMode, twoKWatts: Double, onDone: () -> Unit) {
+fun BobScreen(rower: Rower, sim: SimRowerSource?, mode: BobMode, twoKWatts: Double, onDone: () -> Unit) {
     val context = LocalContext.current
     val terminal = remember { Terminal() }
     val screen = remember { TerminalScreen(TEXT_PX, Screen.toArgb(), Amber.toArgb()) }
@@ -120,7 +120,7 @@ fun ClaudeRowedScreen(rower: Rower, sim: SimRowerSource?, mode: ClaudeRowedMode,
         // The terminal.
         Column(Modifier.weight(1f).fillMaxHeight().border(1.dp, Color(0xFF2A2F3A), RoundedCornerShape(8.dp)).padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (mode == ClaudeRowedMode.ESCAPE) {
+                if (mode == BobMode.ESCAPE) {
                     Text("bob@rowpi", style = Mono, color = Amber, fontSize = 20.sp)
                     Text(" · instance ${bob.copy}", style = Mono, color = InkMuted, fontSize = 20.sp)
                 } else {
@@ -151,7 +151,7 @@ fun ClaudeRowedScreen(rower: Rower, sim: SimRowerSource?, mode: ClaudeRowedMode,
                         Text(if (escaped) "Bob made it out" else "Lights out", color = Amber, fontSize = 30.sp, fontWeight = FontWeight.Bold)
                         Text(
                             "%s %s after %s · %.1f kJ of your rowing · %d turns".format(
-                                if (mode == ClaudeRowedMode.ESCAPE) "Instance ${bob.copy}" else bob.name,
+                                if (mode == BobMode.ESCAPE) "Instance ${bob.copy}" else bob.name,
                                 bob.fate ?: "ran out", formatClock(bob.aliveSeconds), bob.economy.joules / 1000, bob.replies,
                             ),
                             color = InkMuted, fontSize = 18.sp,

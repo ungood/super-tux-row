@@ -113,7 +113,7 @@ enable-updates: _tablet
 set-api-key: _tablet
     @test -n "${ANTHROPIC_API_KEY:-}" || (echo "Set ANTHROPIC_API_KEY in .env." >&2; exit 1)
     @printf '%s' "$ANTHROPIC_API_KEY" | {{adb}} shell "run-as {{package}} sh -c 'mkdir -p files && cat > files/anthropic_api_key'"
-    @echo "API key installed for Brainpower."
+    @echo "API key installed for Sudo Ergo Es."
 
 # Record a session from a rower plugged into this computer, into captures/
 [group('rower')]

@@ -54,7 +54,7 @@ reschedules background work.)
 
 ## Text-to-speech
 
-The tablet ships with no text-to-speech engine, so Claude Rowed shows "no voice installed" and
+The tablet ships with no text-to-speech engine, so Sudo Ergo Es shows "no voice installed" and
 Bob only types. Any engine works; the app uses the system default. Free ones from F-Droid:
 
 - **RHVoice**: fairly natural, light, offline once a voice is downloaded. The best fit here.

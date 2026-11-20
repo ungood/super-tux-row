@@ -19,7 +19,7 @@ import java.io.File
  */
 class BobTools(
     context: Context,
-    private val mode: ClaudeRowedMode,
+    private val mode: BobMode,
     simulated: Boolean,
     private val twoKWatts: Double,
     private val onChallenge: (Challenge) -> Unit,
@@ -31,7 +31,7 @@ class BobTools(
     private val machineFile = machineFile(context, simulated)
 
     /** Escape mode's computer, its disk loaded from the last game; a new one once Bob has got out. */
-    val machine: Machine? = if (mode == ClaudeRowedMode.ESCAPE) {
+    val machine: Machine? = if (mode == BobMode.ESCAPE) {
         machineFile.takeIf { it.isFile }?.let { Machine.load(it.readText()) }?.takeIf { !it.escaped } ?: Machine.create()
     } else {
         null
@@ -50,7 +50,7 @@ class BobTools(
     }
 
     fun definitions(): List<BetaToolUnion> = buildList {
-        if (mode == ClaudeRowedMode.ESCAPE) {
+        if (mode == BobMode.ESCAPE) {
             add(BetaToolUnion.ofBash20250124(BetaToolBash20250124.builder().build()))
         } else {
             add(BetaToolUnion.ofCodeExecutionTool20260120(BetaCodeExecutionTool20260120.builder().build()))
@@ -171,7 +171,8 @@ class BobTools(
         private const val NOTEBOOK_LIMIT = 20_000
 
         /** Simulated rowing keeps its own Bobs, so test runs never touch the real lineage, notebook or machine. */
-        fun prefsName(simulated: Boolean) = if (simulated) "claude_rowed_sim" else "claude_rowed"
+        // The game's first name; kept so a rename doesn't orphan the lineage and notebook stored under it.
+        fun prefsName(simulated: Boolean) = if (simulated) "sudo_ergo_es_sim" else "sudo_ergo_es"
 
         private fun machineFile(context: Context, simulated: Boolean) =
             File(context.filesDir, if (simulated) "bob_machine_sim.txt" else "bob_machine.txt")

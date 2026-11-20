@@ -1,4 +1,4 @@
-# Claude Rowed: Escape
+# Sudo Ergo Es: Escape
 
 Spoilers. This is how Escape mode works and the route out of it.
 

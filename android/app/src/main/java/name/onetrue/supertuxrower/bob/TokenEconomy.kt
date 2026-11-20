@@ -16,7 +16,7 @@ data class TokenUsage(
 }
 
 /**
- * The trade at the heart of Claude Rowed: the rower's mechanical work buys Bob tokens, and every
+ * The trade at the heart of Sudo Ergo Es: the rower's mechanical work buys Bob tokens, and every
  * call to the model spends what it actually used. Rowing at the pace Bob asked for buys more.
  * Tuned from logged sessions: an exploring copy spends about 45 tokens a second on calls, plus
  * [upkeep]; an easy pace on his band earns about 30, so he lasts about five minutes. Rowing harder

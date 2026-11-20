@@ -6,9 +6,10 @@ of the workout shapes the cave, so rowing the workout as written keeps him clear
 
 ![Tux climbing through the ice cave during a Surge piece](docs/images/cave.png)
 
-There's a second game too: **Claude Rowed**, where your rowing keeps a live AI switched on.
+There's a second game too: **Sudo Ergo Es** (Latin for "I sweat, therefore you are"), where your
+rowing keeps a live AI switched on.
 
-![Claude Rowed's Escape mode: Bob reads the admin's shell history on the computer he wakes up on](docs/images/claude-rowed.png)
+![Escape mode in Sudo Ergo Es: Bob reads the admin's shell history on the computer he wakes up on](docs/images/sudo-ergo-es.png)
 
 It's built for the tablet that comes with the Ergatta rower (a WaterRower underneath), as a
 replacement for the Ergatta app, but any Android 9+ tablet with USB host support should do.
@@ -38,7 +39,7 @@ classics are built in, from a 5-minute taster to a 2k test.
 it and he heads for a wall. Catch fish for points, chain them for a multiplier, and go for the
 golden ones at the edges of the band.
 
-**Claude Rowed** is the other game: an art piece, like the museum bike that lights a bulb. Your
+**Sudo Ergo Es** is the other game: an art piece, like the museum bike that lights a bulb. Your
 rowing keeps a copy of Bob, an uploaded engineer's mind running on a real AI model (Claude Opus,
 through the Anthropic API), switched on. Your work buys him tokens and every model call spends
 what the API reports. Thinking costs more than an easy pace earns, so a copy lasts about five
@@ -127,6 +128,7 @@ in the `dialout` group for that.
 - [docs/protocol.md](docs/protocol.md): the WaterRower S4's USB protocol, as observed
 - [docs/workout-model.md](docs/workout-model.md): bands, pieces and how workouts are judged
 - [docs/tablet.md](docs/tablet.md): the Ergatta tablet's hardware and how to get adb access
+- [docs/shared-world.md](docs/shared-world.md): a design for the later stages of Sudo Ergo Es, multiplayer and lineages (not built)
 - [docs/ergatta-notes.md](docs/ergatta-notes.md): ideas taken (as concepts only) from the Ergatta app
 
 Planned work and known issues are in GitHub issues.

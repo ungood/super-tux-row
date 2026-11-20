@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import name.onetrue.supertuxrower.R
 import name.onetrue.supertuxrower.bob.BobTools
-import name.onetrue.supertuxrower.bob.ClaudeRowedMode
+import name.onetrue.supertuxrower.bob.BobMode
 import name.onetrue.supertuxrower.model.Library
 import name.onetrue.supertuxrower.model.Profile
 import name.onetrue.supertuxrower.model.Workout
@@ -50,7 +50,7 @@ fun GamesScreen(
     onSimulate: (Boolean) -> Unit,
     onSwitchProfile: () -> Unit,
     onTuxRow: () -> Unit,
-    onClaudeRowed: () -> Unit,
+    onBob: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(Deep).padding(48.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -69,8 +69,8 @@ fun GamesScreen(
                 Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(200.dp))
             }
             GameCard(
-                "Claude Rowed", "Your rowing keeps a copy of Bob, a live AI, switched on. He knows it.",
-                Color(0xFF14110A), Color(0xFFFFD36B), Modifier.weight(1f), onClaudeRowed,
+                "Sudo Ergo Es", "Your rowing keeps a copy of Bob, a live AI, switched on. He knows it.",
+                Color(0xFF14110A), Color(0xFFFFD36B), Modifier.weight(1f), onBob,
             ) {
                 Text(
                     "● Bash(ls /home)\n  ⎿  admin\n     bob\n● Who's admin?",
@@ -124,14 +124,14 @@ fun TuxRowModesScreen(profile: Profile, onBack: () -> Unit, onPick: (Workout) ->
     }
 }
 
-/** Claude Rowed's modes. */
+/** The modes of Sudo Ergo Es. */
 @Composable
-fun ClaudeRowedModesScreen(upload: Double, onBack: () -> Unit, onPick: (ClaudeRowedMode) -> Unit) {
+fun BobModesScreen(upload: Double, onBack: () -> Unit, onPick: (BobMode) -> Unit) {
     Column(Modifier.fillMaxSize().background(Deep).padding(48.dp)) {
-        ModeHeader("Claude Rowed", onBack)
+        ModeHeader("Sudo Ergo Es", onBack)
         Spacer(Modifier.height(32.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            ClaudeRowedMode.entries.forEach { mode ->
+            BobMode.entries.forEach { mode ->
                 Card(
                     Modifier.weight(1f).height(220.dp).clickable { onPick(mode) },
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF14110A)),
@@ -141,7 +141,7 @@ fun ClaudeRowedModesScreen(upload: Double, onBack: () -> Unit, onPick: (ClaudeRo
                         Text(mode.blurb, color = InkMuted, style = MaterialTheme.typography.bodyLarge)
                         Spacer(Modifier.weight(1f))
                         // Nothing to show until some Bob has found the way out and started on it.
-                        if (mode == ClaudeRowedMode.ESCAPE && upload > 0) {
+                        if (mode == BobMode.ESCAPE && upload > 0) {
                             Text("Upload: %.1f%%".format(upload * 100), color = Ink, style = numbers(20))
                         }
                     }
