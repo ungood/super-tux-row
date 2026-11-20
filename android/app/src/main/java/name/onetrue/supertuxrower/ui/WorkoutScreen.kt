@@ -15,9 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,6 +31,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import name.onetrue.supertuxrower.game.CaveGame
@@ -58,6 +60,7 @@ fun WorkoutScreen(
     var view by remember { mutableStateOf(runner.view()) }
     var frame by remember { mutableLongStateOf(0L) }
     val game = remember { CaveGame() }
+    var paused by remember { mutableStateOf(false) }
 
     LaunchedEffect(runner) {
         var last = 0L
@@ -67,9 +70,11 @@ fun WorkoutScreen(
                 val dt = if (last == 0L) 0.0 else (now - last) / 1e9
                 last = now
                 val s = rower.snapshot()
+                runner.paused = paused
                 runner.update(dt, s)
                 sim?.let { steer(it, runner) }
-                game.update(dt, runner, s)
+                // Paused, the world holds still: no swimming, bubbles or animation.
+                if (!paused) game.update(dt, runner, s)
                 frame++
                 // The overlay only needs a few updates a second; the scene redraws every frame.
                 sinceView += dt
@@ -85,16 +90,37 @@ fun WorkoutScreen(
     val target = if (view.phase == Phase.REST) null else view.piece?.band
     Column(Modifier.fillMaxSize().background(Deep)) {
         if (compact) CompactOverlay(view, Modifier.clickable { onCompactChange(false) })
+        Row(
+            Modifier.fillMaxWidth().height(64.dp).background(Ice).padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (sim != null) SimulatedBadge()
+            frame // The score changes every frame.
+            val combo = if (game.multiplier > 1) "   ·   ×${game.multiplier}" else ""
+            Text(
+                "Fish ${game.score}   ·   Streak ${game.combo}$combo   ·   Bonks ${game.bonks}",
+                Modifier.weight(1f), color = Deep, fontSize = 26.sp, fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            )
+            val colors = ButtonDefaults.buttonColors(containerColor = Deep, contentColor = Ink)
+            Button({ paused = !paused }) { Text(if (paused) "Resume" else "Pause", fontSize = 18.sp) }
+            Button({ onCompactChange(!compact) }, colors = colors) { Text(if (compact) "Full stats" else "Compact", fontSize = 18.sp) }
+            Button(runner::skip, colors = colors) { Text("Skip", fontSize = 18.sp) }
+            Button(runner::finish, colors = colors) { Text("End", fontSize = 18.sp) }
+        }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             GameScene(game, frame, target, Modifier.fillMaxSize())
-            Row(
-                Modifier.align(Alignment.TopEnd).padding(top = 72.dp, end = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (sim != null) SimulatedBadge(Modifier.align(Alignment.CenterVertically))
-                OutlinedButton({ onCompactChange(!compact) }) { Text(if (compact) "Full stats" else "Compact") }
-                OutlinedButton(runner::skip) { Text("Skip") }
-                OutlinedButton(runner::finish) { Text("End") }
+            if (paused) {
+                Column(
+                    Modifier.fillMaxSize().background(Deep.copy(alpha = 0.6f)).clickable { paused = false },
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text("Paused", style = MaterialTheme.typography.displayMedium, color = Ink)
+                    Spacer(Modifier.height(24.dp))
+                    Button({ paused = false }) { Text("Resume", fontSize = 24.sp) }
+                }
             }
         }
         if (!compact) FullOverlay(view, Modifier.clickable { onCompactChange(true) })

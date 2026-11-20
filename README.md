@@ -36,8 +36,9 @@ classics are built in, from a 5-minute taster to a 2k test.
 
 **The cave.** Your boat speed carries Tux forward; your power sets how fast he climbs or sinks
 (Glide is level). While you're in the target band he's gently kept in the middle; drift out of
-it and he heads for a wall. Catch fish for points, chain them for a multiplier, and go for the
-golden ones at the edges of the band.
+it and he heads for a wall. The cave starts wide while you settle in, then has roomier and
+tighter stretches. Catch fish for points, chain them for a multiplier, and go for the golden ones
+at the edges of the band. Pause stops the clock, and nothing rowed while paused counts.
 
 **Sudo Ergo Es** is the other game: an art piece, like the museum bike that lights a bulb. Your
 rowing keeps a copy of Bob, an uploaded engineer's mind running on a real AI model (Claude Opus,

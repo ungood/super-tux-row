@@ -41,6 +41,24 @@ class CaveGameTest {
     }
 
     @Test
+    fun `every built-in workout with an end, rowed as written stays clear of the walls`() {
+        for (workout in Library.workouts.filter { it.name != "Just row" }) {
+            val runner = WorkoutRunner(workout, testProfile)
+            val game = CaveGame()
+            val rower = FakeRower(watts = testProfile.wattsFor(Band.UT2))
+            var steps = 0
+            while (runner.phase != Phase.DONE && steps++ < 400_000) {
+                followWorkout(runner, rower)
+                val s = rower.step(dt)
+                runner.update(dt, s)
+                game.update(dt, runner, s)
+            }
+            assertEquals(workout.name, Phase.DONE, runner.phase)
+            assertEquals("bonks in ${workout.name}", 0, game.bonks)
+        }
+    }
+
+    @Test
     fun `stopping in the middle of a hard piece hits the floor`() {
         val runner = WorkoutRunner(taster, testProfile)
         val game = CaveGame()
@@ -83,5 +101,27 @@ class CaveGameTest {
             game.update(dt, runner, s)
         }
         assertTrue("climbed from $before to ${game.y}", game.y > before)
+    }
+
+    @Test
+    fun `the cave starts wide, then has roomier and tighter stretches`() {
+        val game = CaveGame()
+        val later = (CaveGame.WARMUP_METRES.toInt()..5000).map { game.widthAt(it.toDouble()) }
+        assertTrue("start ${game.widthAt(0.0)}", game.widthAt(0.0) > later.max())
+        assertTrue("widest ${later.max()}", later.max() > 1.2)
+        assertTrue("tightest ${later.min()}", later.min() in 0.7..0.8)
+    }
+
+    @Test
+    fun `the cave is built past the right edge`() {
+        val runner = WorkoutRunner(taster, testProfile)
+        val game = CaveGame()
+        val rower = FakeRower(watts = testProfile.wattsFor(Band.UT2))
+        repeat((60 / dt).toInt()) {
+            val s = rower.step(dt)
+            runner.update(dt, s)
+            game.update(dt, runner, s)
+            assertTrue(game.slices.last().metre >= game.metres + CaveGame.LOOKAHEAD + 1)
+        }
     }
 }

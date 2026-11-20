@@ -51,6 +51,24 @@ class WorkoutRunnerTest {
     }
 
     @Test
+    fun `pausing stops the clock and ignores rowing until resumed`() {
+        val workout = Workout("500", "500m", listOf(Piece(Goal.Distance(500), Band.TR)))
+        val runner = WorkoutRunner(workout, testProfile)
+        val rower = FakeRower(watts = testProfile.wattsFor(Band.TR))
+        runner.row(rower, 20.0)
+        val elapsed = runner.elapsed
+        val distance = runner.distance
+        runner.paused = true
+        runner.row(rower, 30.0)
+        assertEquals(elapsed, runner.elapsed, 0.0)
+        assertEquals(distance, runner.distance, 0.0)
+        runner.paused = false
+        runner.row(rower, 1.0)
+        assertTrue("distance ${runner.distance}", runner.distance - distance in 0.0..10.0)
+        assertEquals(Phase.WORK, runner.phase)
+    }
+
+    @Test
     fun `distance goals finish at the distance`() {
         val workout = Workout("500", "500m", listOf(Piece(Goal.Distance(500), Band.TR)))
         val runner = WorkoutRunner(workout, testProfile)

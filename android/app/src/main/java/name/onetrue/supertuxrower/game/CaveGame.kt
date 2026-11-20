@@ -19,6 +19,9 @@ import kotlin.math.sin
  * While you're in the target band he's also pulled gently towards the middle of the cave, so
  * wobbles within the band don't pile up; leave the band and he drifts into a wall (a bonk).
  *
+ * The cave starts wide and flat while you settle in, then alternates roomier and tighter stretches
+ * ([widthAt]).
+ *
  * Heights are in world units; the screen shows [VIEW_HEIGHT] of them.
  */
 class CaveGame {
@@ -26,6 +29,9 @@ class CaveGame {
     class Fish(val metre: Double, val height: Double, val gold: Boolean) {
         var eaten = false
         var passed = false
+        /** When it was eaten, on [clock], and what it scored, for the scene's burst. */
+        var eatenAt = 0.0
+        var points = 0
     }
     class Bubble(val metre: Double, var height: Double, val born: Double, val size: Float)
 
@@ -56,6 +62,10 @@ class CaveGame {
 
     var clock = 0.0
         private set
+    /** When the last bonk counted, on [clock]; the scene shakes and Tux sees stars. */
+    var bonkedAt = -10.0
+        private set
+    val sinceStroke: Double get() = clock - lastStrokeAt
     private var nextBubble = 0.0
     private var nextSlice = 0.0
     private var nextFish = FIRST_FISH
@@ -124,6 +134,7 @@ class CaveGame {
                 if (working && !grace && clock - lastBonkAt > 1.5) {
                     bonks++
                     combo = 0
+                    bonkedAt = clock
                 }
                 lastBonkAt = clock
             }
@@ -134,7 +145,9 @@ class CaveGame {
             if (f.eaten || f.passed) continue
             if (f.metre <= metres && abs(y - f.height) < CATCH_RADIUS) {
                 f.eaten = true
-                score += (if (f.gold) 3 else 1) * multiplier
+                f.eatenAt = clock
+                f.points = (if (f.gold) 3 else 1) * multiplier
+                score += f.points
                 combo++
             } else if (f.metre < metres - 1.0) {
                 f.passed = true
@@ -165,10 +178,13 @@ class CaveGame {
         return Slice(metre, a.centre + (b.centre - a.centre) * f, a.half + (b.half - a.half) * f)
     }
 
-    /** New cave and fish enter at the right edge, [LOOKAHEAD] metres ahead of Tux. */
+    /**
+     * New cave and fish are built a little past the right edge, [LOOKAHEAD] metres ahead of Tux,
+     * so they scroll in rather than appearing at the edge with open water before them.
+     */
     private fun spawn(runner: WorkoutRunner, speed: Double) {
         val profile = runner.profile
-        while (nextSlice <= metres + LOOKAHEAD) {
+        while (nextSlice <= metres + LOOKAHEAD + MARGIN) {
             val m = nextSlice
             nextSlice += SLICE_METRES
             val band = runner.bandAhead((m - metres) / speed.coerceAtLeast(1.5), speed)
@@ -177,22 +193,40 @@ class CaveGame {
             base += slope * SLICE_METRES
             // A little undulation for variety, eased in and out around rests.
             undulation += ((if (band != null) 1.0 else 0.0) - undulation) * 0.08
-            val wave = undulation * WAVE * sin(2 * PI * m / 55 + 2.1)
-            slices.addLast(Slice(m, base + wave, HALF + (1 - undulation) * 0.4))
+            val wave = undulation * settled(m) * WAVE * sin(2 * PI * m / 55 + 2.1)
+            slices.addLast(Slice(m, base + wave, HALF * widthAt(m) + (1 - undulation) * 0.4))
         }
-        while (nextFish <= metres + LOOKAHEAD) {
+        while (nextFish <= metres + LOOKAHEAD + MARGIN) {
             val m = nextFish
             nextFish += FISH_METRES
             if (runner.bandAhead((m - metres) / speed.coerceAtLeast(1.5), speed) == null && runner.phase != Phase.READY) continue
             val c = sliceAt(m) ?: continue
             fishCount++
-            val (offset, gold) = when {
-                // Golden fish sit where rowing at the top or bottom of the band takes you.
-                fishCount % 6 == 0 -> (if (fishCount % 12 == 0) -GOLD_OFFSET else GOLD_OFFSET) to true
+            // Golden fish sit where rowing at the top or bottom of the band takes you, if there's room.
+            val gold = GOLD_OFFSET.coerceAtMost(c.half - TUX_HALF - 0.05)
+            val (offset, isGold) = when {
+                fishCount % 6 == 0 -> (if (fishCount % 12 == 0) -gold else gold) to true
                 else -> sin(fishCount * 1.7) * 0.1 to false
             }
-            fish.addLast(Fish(m, c.centre + offset, gold))
+            fish.addLast(Fish(m, c.centre + offset, isGold))
         }
+    }
+
+    /**
+     * The cave's half-height at [metre], as a multiple of [HALF]. It starts [WARMUP_EXTRA] wider
+     * and narrows to normal over [WARMUP_METRES]; after that it swells and tightens over a few
+     * hundred metres, between about 0.72 and 1.28.
+     */
+    fun widthAt(metre: Double): Double {
+        val settled = settled(metre)
+        val sections = 0.2 * sin(2 * PI * metre / 170 + 0.7) + 0.08 * sin(2 * PI * metre / 63 + 1.9)
+        return 1 + WARMUP_EXTRA * (1 - settled) + settled * sections
+    }
+
+    /** 0 at the start, easing to 1 by [WARMUP_METRES]: how far into the course's real shape. */
+    private fun settled(metre: Double): Double {
+        val t = (metre / WARMUP_METRES).coerceIn(0.0, 1.0)
+        return t * t * (3 - 2 * t)
     }
 
     companion object {
@@ -215,6 +249,10 @@ class CaveGame {
         const val FIRST_FISH = 12.0
         /** Metres of course visible ahead of Tux. */
         const val LOOKAHEAD = 22.0
+        /** Metres built beyond [LOOKAHEAD], off the right edge. */
+        const val MARGIN = 4.0
+        const val WARMUP_METRES = 300.0
+        const val WARMUP_EXTRA = 0.6
         const val BEHIND = 15.0
         const val CATCH_RADIUS = 0.22
     }

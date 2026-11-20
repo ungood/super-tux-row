@@ -84,6 +84,8 @@ class WorkoutRunner(val workout: Workout, val profile: Profile) {
         private set
     var distance = 0.0
         private set
+    /** While paused the clock stops, and anything rowed (or coasted) doesn't count. */
+    var paused = false
 
     private val tracker = BandTracker(profile)
     private var seenStrokes = -1
@@ -96,6 +98,16 @@ class WorkoutRunner(val workout: Workout, val profile: Profile) {
     val piece: Piece? get() = workout.pieces.getOrNull(index)
 
     fun update(dt: Double, s: RowerSnapshot) {
+        if (paused) {
+            last?.let {
+                val coasted = s.distance - it.distance
+                startDistance += coasted
+                pieceStartDistance += coasted
+            }
+            last = s
+            seenStrokes = s.strokes
+            return
+        }
         last = s
         tracker.update(s.watts)
         val stroke = seenStrokes >= 0 && s.strokes > seenStrokes
