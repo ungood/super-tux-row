@@ -23,16 +23,19 @@ import kotlin.math.sin
  * position, so the game doesn't keep them.
  */
 
-/** Something living on the floor at [p], chosen by [r] (a hash from 0.3 up; most are bare). */
-internal fun DrawScope.drawFloorLife(p: WallPoint, r: Float, clock: Double) {
+/**
+ * Something living on the floor at [p], chosen by [r] (a hash from 0.3 up; most are bare). Things
+ * that grow stand upright; things that crawl lie along the floor's [slope], in degrees.
+ */
+internal fun DrawScope.drawFloorLife(p: WallPoint, r: Float, clock: Double, slope: Float) {
     val seed = p.index
     val at = Offset(p.x + (hash(seed, 100) - 0.5f) * 24f, p.y + 4f)
     when {
         r < 0.37f -> drawAnemone(at, seed, clock)
         r < 0.43f -> drawSponge(at, seed)
         r < 0.48f -> drawTubeWorms(at, seed, clock)
-        r < 0.51f -> drawCrab(at, seed, clock)
-        r < 0.54f -> drawStarfish(Offset(at.x, at.y + 2f), 12f + hash(seed, 46) * 6f, hash(seed, 45) * 72f, seed)
+        r < 0.51f -> rotate(slope, pivot = at) { drawCrab(at, seed, clock) }
+        r < 0.54f -> rotate(slope, pivot = at) { drawStarfish(Offset(at.x, at.y + 2f), 12f + hash(seed, 46) * 6f, hash(seed, 45) * 72f, seed) }
     }
 }
 

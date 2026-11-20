@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import kotlin.math.PI
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -293,8 +294,12 @@ internal fun DrawScope.drawFloor(points: List<WallPoint>, clock: Double) {
     drawPath(rim, Sand.copy(alpha = 0.7f), style = Stroke(width = 12f))
     drawPath(rim, SandLight, style = Stroke(width = 3f))
 
-    for (p in points) {
+    for ((i, p) in points.withIndex()) {
         val r = hash(p.index, 41)
+        // The floor's slope here, so things that crawl along it lie along it.
+        val before = points[(i - 1).coerceAtLeast(0)]
+        val after = points[(i + 1).coerceAtMost(points.lastIndex)]
+        val slope = (atan2(after.y - before.y, after.x - before.x) * 180 / PI).toFloat()
         when {
             r < 0.3f -> {
                 val w = 20f + hash(p.index, 42) * 36f
@@ -303,7 +308,7 @@ internal fun DrawScope.drawFloor(points: List<WallPoint>, clock: Double) {
                 drawOval(RockMid, Offset(at.x - w / 2, at.y - h / 2), Size(w, h))
                 drawOval(RockLight, Offset(at.x - w * 0.35f, at.y - h * 0.45f), Size(w * 0.5f, h * 0.35f))
             }
-            else -> drawFloorLife(p, r, clock)
+            else -> drawFloorLife(p, r, clock, slope)
         }
     }
 }

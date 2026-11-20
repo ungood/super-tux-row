@@ -306,6 +306,25 @@ class WorkoutRunner(val workout: Workout, val profile: Profile) {
         beginPiece(s)
     }
 
+    /** How far through the current piece you are, 0 to 1, golden-fish credit included; null if it's open. */
+    fun pieceFraction(): Double? {
+        val r = results.getOrNull(index) ?: return null
+        val done = when (val goal = r.piece.goal) {
+            is Goal.Time -> (r.seconds + r.bonus) / goal.seconds
+            is Goal.Distance -> (r.distance + r.bonus) / goal.metres
+            is Goal.Calories -> (r.calories + r.bonus) / goal.kcal
+            Goal.Open -> return null
+        }
+        return done.coerceIn(0.0, 1.0)
+    }
+
+    /** How far through the current rest, 0 to 1; one that waits for you counts its forecast length, then holds at 1. */
+    val restFraction: Double
+        get() = when (val rest = piece?.rest) {
+            is Rest.Time -> restElapsed / rest.seconds
+            else -> restElapsed / Rest.UntilReady.estimatedSeconds()
+        }.coerceIn(0.0, 1.0)
+
     /**
      * Takes a little off the current piece, for a golden fish: [Bonus] seconds, metres or kcal
      * depending on its goal. Returns how much, to show, or null if there's nothing to take off.

@@ -195,4 +195,44 @@ class CaveGameTest {
         assertEquals(Phase.WORK, runner.phase)
         assertEquals("bonks", 0, game.bonks)
     }
+
+    @Test
+    fun `Tux drifts through a rest at the same pace however you row`() {
+        fun positionMidRest(restWatts: Double): Double {
+            val runner = WorkoutRunner(taster, testProfile)
+            val game = CaveGame()
+            val rower = FakeRower(watts = testProfile.wattsFor(Band.UT2))
+            var steps = 0
+            while (!(runner.phase == Phase.REST && runner.restFraction >= 0.5) && steps++ < 20_000) {
+                rower.watts = if (runner.phase == Phase.REST) restWatts else testProfile.wattsFor(runner.piece?.band ?: Band.UT1)
+                val s = rower.step(dt)
+                runner.update(dt, s)
+                game.update(dt, runner, s)
+            }
+            return game.course!!.position(runner)
+        }
+        assertEquals(positionMidRest(0.0), positionMidRest(testProfile.twoKWatts), 0.5)
+    }
+
+    @Test
+    fun `a workout goes from near the surface into the deep`() {
+        val runner = WorkoutRunner(taster, testProfile)
+        val game = CaveGame()
+        val rower = FakeRower(watts = testProfile.wattsFor(Band.UT2))
+        var shallowest = Double.MAX_VALUE
+        var deepest = 0.0
+        var steps = 0
+        while (runner.phase != Phase.DONE && steps++ < 20_000) {
+            followWorkout(runner, rower)
+            val s = rower.step(dt)
+            runner.update(dt, s)
+            game.update(dt, runner, s)
+            if (runner.phase == Phase.WORK) {
+                shallowest = minOf(shallowest, game.depth)
+                deepest = maxOf(deepest, game.depth)
+            }
+        }
+        assertTrue("shallowest $shallowest", shallowest < 20)
+        assertTrue("deepest $deepest", deepest > 150)
+    }
 }

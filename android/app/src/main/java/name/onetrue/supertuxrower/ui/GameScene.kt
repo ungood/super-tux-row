@@ -88,7 +88,7 @@ fun GameScene(game: CaveGame, frame: () -> Long, target: Band?, modifier: Modifi
             val tilt = (-game.vy * 40).toFloat().coerceIn(-25f, 25f)
             val at = Offset(tuxX, y(game.y + game.bob))
             // A golden fish gives him a burst: a glow and speed lines streaming behind.
-            val boost = (1 - (clock - game.boostedAt) / 1.6).toFloat()
+            val boost = (1 - (clock - game.boostedAt) / CaveGame.BOOST_SECONDS).toFloat()
             if (boost > 0f) drawBoost(at, boost, clock)
             val dizzy = (1 - sinceBonk / 1.6f).coerceIn(0f, 1f)
             rotate(tilt, pivot = at) { drawTux(at, clock, game.sinceStroke, dizzy) }

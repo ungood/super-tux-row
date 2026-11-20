@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -79,6 +78,9 @@ fun WorkoutScreen(
     // Coming out of a pause counts down first, still frozen, so you can get back on the handle.
     var resumeIn by remember { mutableStateOf<Double?>(null) }
     var grace by remember { mutableStateOf(0.0) }
+    // After the last piece Tux swims out of the cave; then a card, then the stats.
+    var finished by remember { mutableStateOf(0.0) }
+    var leaving by remember { mutableStateOf(false) }
     fun resume() {
         if (paused && resumeIn == null) resumeIn = RESUME_COUNTDOWN
     }
@@ -105,7 +107,7 @@ fun WorkoutScreen(
         var sinceView = 0.0
         var logged = ""
         var bonks = 0
-        while (runner.phase != Phase.DONE) {
+        while (!leaving) {
             withFrameNanos { now ->
                 val dt = if (last == 0L) 0.0 else (now - last) / 1e9
                 last = now
@@ -142,7 +144,9 @@ fun WorkoutScreen(
                 if (sinceView >= 0.1 && !paused) {
                     sinceView = 0.0
                     view = runner.view()
-                    grace = if (runner.phase == Phase.WORK) game.graceLeft else 0.0
+                    grace = if (runner.phase == Phase.WORK) game.holdLeft else 0.0
+                    finished = game.finishedFor
+                    if (finished > FINISH_TIMEOUT) leaving = true
                 }
             }
         }
@@ -160,7 +164,7 @@ fun WorkoutScreen(
             Score(game, { frame.longValue }, Modifier.align(Alignment.Center))
             Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 val waiting = paused && resumeIn == null
-                Button({ if (waiting) resume() else pause() }) { Text(if (waiting) "Resume" else "Pause", fontSize = 18.sp) }
+                if (view.phase != Phase.DONE) Button({ if (waiting) resume() else pause() }) { Text(if (waiting) "Resume" else "Pause", fontSize = 18.sp) }
                 Button(
                     { Log.i(NAV, "End"); runner.finish() },
                     colors = ButtonDefaults.buttonColors(containerColor = Deep, contentColor = Ink),
@@ -169,7 +173,7 @@ fun WorkoutScreen(
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             GameScene(game, { frame.longValue }, target, Modifier.fillMaxSize())
-            val cardAt = Modifier.align(Alignment.Center).offset(x = 140.dp)
+            val cardAt = Modifier.align(Alignment.Center)
             when {
                 resumeIn != null -> GameCard(view.piece?.band?.color(), cardAt) {
                     Label("Get ready")
@@ -177,6 +181,7 @@ fun WorkoutScreen(
                     Text("Take hold of the handle.", color = InkMuted, fontSize = 20.sp)
                 }
                 paused -> {}
+                view.phase == Phase.DONE -> if (finished > 2.5) FinishCard(game, runner, cardAt) { leaving = true }
                 view.phase == Phase.REST || view.phase == Phase.READY -> PhaseCard(view, cardAt)
                 grace > 0 -> GraceCard(view, grace, cardAt)
             }
@@ -232,7 +237,37 @@ private fun PhaseCard(v: WorkoutView, modifier: Modifier) {
     }
 }
 
-/** The first seconds of a piece, or after a pause: Tux is held while you get up to speed. */
+/** The end of the workout: a few highlights while Tux swims up into the light. */
+@Composable
+private fun FinishCard(game: CaveGame, runner: WorkoutRunner, modifier: Modifier, onContinue: () -> Unit) {
+    GameCard(Ice, modifier) {
+        Label("Workout complete")
+        Text(runner.workout.name, style = numbers(52, FontWeight.Bold))
+        Text("${formatClock(runner.elapsed)}  ·  ${runner.distance.roundToInt()} m", style = numbers(28, color = InkMuted))
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+            Highlight("Fish", "${game.score}")
+            Highlight("Golden", "${game.goldCaught}")
+            Highlight("Best streak", "${game.bestStreak}")
+            Highlight("Bonks", "${game.bonks}")
+        }
+        Spacer(Modifier.height(6.dp))
+        Button(onContinue) { Text("See your stats", fontSize = 20.sp) }
+    }
+}
+
+@Composable
+private fun Highlight(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = numbers(36, FontWeight.Bold))
+        Label(label)
+    }
+}
+
+/** Seconds after the end before moving on to the stats by itself. */
+private const val FINISH_TIMEOUT = 30.0
+
+/** The start, or coming back from a pause: Tux is held while you get up to speed. */
 @Composable
 private fun GraceCard(v: WorkoutView, seconds: Double, modifier: Modifier) {
     GameCard(v.piece?.band?.color(), modifier) {
