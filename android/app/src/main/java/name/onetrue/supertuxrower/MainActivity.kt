@@ -158,7 +158,10 @@ private fun App(
                 verb == "profile" -> profiles.firstOrNull { it.name.equals(arg, ignoreCase = true) }?.let(::choose)
                     ?: Log.i(NAV, "No profile called $arg: ${profiles.joinToString { it.name }}")
                 verb == "back" -> back()
-                verb == "hide" -> name.onetrue.supertuxrower.ui.HiddenLayers.set = arg.split(',').map { it.trim() }.toSet()
+                verb == "giant" -> {
+                    name.onetrue.supertuxrower.ui.Summon.kind = arg.ifEmpty { "whale" }
+                    name.onetrue.supertuxrower.ui.Summon.at = Double.NaN
+                }
                 verb == "sim" -> onSimulate(true)
                 verb == "rower" -> onSimulate(false)
                 p == null && verb != "help" -> Log.i(NAV, "Pick a profile first: profile <name>")
@@ -167,7 +170,7 @@ private fun App(
                 verb == "workout" && p != null -> Library.workouts.firstOrNull { looseName(it.name) == looseName(arg) }
                     ?.let { screen = Screen.Rowing(WorkoutRunner(it, p)) }
                     ?: Log.i(NAV, "No workout called $arg: ${Library.workouts.joinToString { it.name }}")
-                else -> Log.i(NAV, (if (verb == "help") "Commands:" else "Unknown command $cmd. Try:") + " profile <name>, games, tuxrow, workout <name>, back, " +
+                else -> Log.i(NAV, (if (verb == "help") "Commands:" else "Unknown command $cmd. Try:") + " profile <name>, games, tuxrow, workout <name>, back, giant <whale|orca|squid|octopus>, " +
                     "sim, rower, ${DebugCommands.WORKOUT.joinToString()}")
             }
         }

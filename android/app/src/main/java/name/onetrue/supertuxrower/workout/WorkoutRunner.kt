@@ -41,6 +41,11 @@ class PieceResult(val piece: Piece) {
     var inBand = 0.0
     var distance = 0.0
     var calories = 0.0
+    /**
+     * Credit towards the goal from golden fish, in the goal's own units (seconds, metres or kcal).
+     * It brings the end of the piece closer without changing what you actually rowed.
+     */
+    var bonus = 0.0
 
     val inBandShare: Double? get() = if (piece.band != null && seconds > 0) inBand / seconds else null
 }
@@ -55,6 +60,8 @@ data class WorkoutView(
     val goalLeft: String,
     val progress: Float?,
     val restLeft: String?,
+    /** Seconds of a timed rest left; null outside rests and for rests that wait for you. */
+    val restSeconds: Double?,
     val elapsed: Double,
     val distance: Double,
     val calories: Double,
@@ -227,9 +234,9 @@ class WorkoutRunner(val workout: Workout, val profile: Profile) {
     }
 
     private fun remainingSeconds(r: PieceResult, speed: Double): Double = when (val goal = r.piece.goal) {
-        is Goal.Time -> goal.seconds - r.seconds
-        is Goal.Distance -> (goal.metres - r.distance) / speed.coerceAtLeast(1.0)
-        is Goal.Calories -> (goal.kcal - r.calories) / (Rowing.kcalPerHour(Rowing.watts(speed.coerceAtLeast(1.0))) / 3600)
+        is Goal.Time -> goal.seconds - r.seconds - r.bonus
+        is Goal.Distance -> (goal.metres - r.distance - r.bonus) / speed.coerceAtLeast(1.0)
+        is Goal.Calories -> (goal.kcal - r.calories - r.bonus) / (Rowing.kcalPerHour(Rowing.watts(speed.coerceAtLeast(1.0))) / 3600)
         Goal.Open -> Double.MAX_VALUE
     }
 
@@ -262,6 +269,7 @@ class WorkoutRunner(val workout: Workout, val profile: Profile) {
             goalLeft = goalLeft,
             progress = progress,
             restLeft = restLeft,
+            restSeconds = (p?.rest as? Rest.Time)?.takeIf { phase == Phase.REST }?.let { it.seconds - restElapsed },
             elapsed = elapsed,
             distance = distance,
             calories = calories,
@@ -298,17 +306,38 @@ class WorkoutRunner(val workout: Workout, val profile: Profile) {
         beginPiece(s)
     }
 
+    /**
+     * Takes a little off the current piece, for a golden fish: [Bonus] seconds, metres or kcal
+     * depending on its goal. Returns how much, to show, or null if there's nothing to take off.
+     */
+    fun bonus(): String? {
+        if (phase != Phase.WORK) return null
+        val r = results[index]
+        return when (r.piece.goal) {
+            is Goal.Time -> { r.bonus += Bonus.SECONDS; "−${Bonus.SECONDS.roundToInt()} s" }
+            is Goal.Distance -> { r.bonus += Bonus.METRES; "−${Bonus.METRES.roundToInt()} m" }
+            is Goal.Calories -> { r.bonus += Bonus.KCAL; "−${Bonus.KCAL} cal" }
+            Goal.Open -> null
+        }
+    }
+
+    object Bonus {
+        const val SECONDS = 2.0
+        const val METRES = 8.0
+        const val KCAL = 0.5
+    }
+
     private fun goalReached(r: PieceResult): Boolean = when (val goal = r.piece.goal) {
-        is Goal.Time -> r.seconds >= goal.seconds
-        is Goal.Distance -> r.distance >= goal.metres
-        is Goal.Calories -> r.calories >= goal.kcal
+        is Goal.Time -> r.seconds + r.bonus >= goal.seconds
+        is Goal.Distance -> r.distance + r.bonus >= goal.metres
+        is Goal.Calories -> r.calories + r.bonus >= goal.kcal
         Goal.Open -> false
     }
 
     private fun goalProgress(p: Piece, r: PieceResult): Pair<String, Float?> = when (val goal = p.goal) {
-        is Goal.Time -> formatClock(goal.seconds - r.seconds + 0.999) to (r.seconds / goal.seconds).toFloat()
-        is Goal.Distance -> "${(goal.metres - r.distance).roundToInt().coerceAtLeast(0)} m" to (r.distance / goal.metres).toFloat()
-        is Goal.Calories -> "${(goal.kcal - r.calories).roundToInt().coerceAtLeast(0)} cal" to (r.calories / goal.kcal).toFloat()
+        is Goal.Time -> formatClock(goal.seconds - r.seconds - r.bonus + 0.999) to ((r.seconds + r.bonus) / goal.seconds).toFloat()
+        is Goal.Distance -> "${(goal.metres - r.distance - r.bonus).roundToInt().coerceAtLeast(0)} m" to ((r.distance + r.bonus) / goal.metres).toFloat()
+        is Goal.Calories -> "${(goal.kcal - r.calories - r.bonus).roundToInt().coerceAtLeast(0)} cal" to ((r.calories + r.bonus) / goal.kcal).toFloat()
         Goal.Open -> formatClock(r.seconds) to null
     }
 

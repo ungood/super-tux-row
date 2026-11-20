@@ -6,8 +6,10 @@ import name.onetrue.supertuxrower.workout.Phase
 import name.onetrue.supertuxrower.workout.WorkoutRunner
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.random.Random
 
 /**
  * Tux swims through an ice cave, laid out in metres. Your boat speed moves him forward; your power
@@ -24,7 +26,7 @@ import kotlin.math.sin
  *
  * Heights are in world units; the screen shows [VIEW_HEIGHT] of them.
  */
-class CaveGame {
+class CaveGame(private val random: Random = Random.Default) {
     class Slice(val metre: Double, val centre: Double, val half: Double)
     class Fish(val metre: Double, val height: Double, val gold: Boolean) {
         var eaten = false
@@ -32,6 +34,8 @@ class CaveGame {
         /** When it was eaten, on [clock], and what it scored, for the scene's burst. */
         var eatenAt = 0.0
         var points = 0
+        /** For a golden fish, what it took off the piece ("−2 s"), if anything. */
+        var bonus: String? = null
     }
     class Bubble(val metre: Double, var height: Double, val born: Double, val size: Float)
 
@@ -56,6 +60,13 @@ class CaveGame {
     /** The camera's height, eased to follow the cave at Tux. */
     var camera = 0.0
         private set
+    /**
+     * How deep Tux is, in metres: the cave starts [START_DEPTH] down, and every world unit it sinks
+     * is [METRES_PER_UNIT] more. Easy pieces take you down, hard ones back up.
+     */
+    val depth: Double get() = (START_DEPTH - camera * METRES_PER_UNIT).coerceAtLeast(1.0)
+    /** How much daylight reaches him, 1 near the surface fading to [MIN_LIGHT] in the deep. */
+    val light: Double get() = exp(-depth / LIGHT_FALLOFF).coerceAtLeast(MIN_LIGHT)
     /** Your power on the band scale (0–6), eased so the gauge glides. */
     var gauge = 0.0
         private set
@@ -66,19 +77,27 @@ class CaveGame {
     var bonkedAt = -10.0
         private set
     val sinceStroke: Double get() = clock - lastStrokeAt
-    private var nextBubble = 0.0
+    /** When Tux last ate a golden fish, for the burst of speed it gives him on screen. */
+    var boostedAt = -10.0
+        private set
+    private var nextBreath = 0.0
+    private var nextPuff = 0.0
+    private var puffLeft = 0
+    /** Breaths taken so far; each one is a puff of bubbles. */
+    var breaths = 0
+        private set
     /** The cave starts behind Tux too, so the screen is full from the first frame. */
     private var nextSlice = -BEHIND
     private var nextFish = FIRST_FISH
     private var base = 0.0
     private var undulation = 0.0
-    private var fishCount = 0
     private var lastBonkAt = -10.0
     private var lastStrokeAt = -10.0
     private var seenStrokes = -1
     private var averageFraction = 0.0
     private var piece = -1
-    private var pieceStartedAt = 0.0
+    private var graceFrom = -GRACE
+    private var wasWorking = false
 
     /** Cosmetic bob after each stroke, in world units; it doesn't move Tux's real height. */
     val bob: Double
@@ -101,23 +120,25 @@ class CaveGame {
         gauge += (Band.position(fraction) - gauge) * min(1.0, dt * 4)
         if (s.moving) averageFraction += (fraction - averageFraction) * min(1.0, dt / 15)
 
-        if (runner.index != piece) {
-            piece = runner.index
-            pieceStartedAt = clock
-        }
-        // A new piece's first seconds are for bringing your effort to the new target.
-        val grace = clock - pieceStartedAt < GRACE
         val target = runner.target
         val working = runner.phase == Phase.WORK
+        // A piece's first seconds, from its first stroke, are for bringing your effort to the target.
+        if (working && (!wasWorking || runner.index != piece)) easeIn()
+        piece = runner.index
+        wasWorking = working
+        val grace = graceLeft > 0
         val here = sliceAt(metres)
 
         if (working) {
             // Pieces without a target are measured against your own recent average.
             val neutral = if (target != null) NEUTRAL else averageFraction
-            val climb = CLIMB * (fraction - neutral)
+            // Through the grace period your power takes over gradually, so a slow start doesn't sink him.
+            val handover = (1 - graceLeft / GRACE).coerceIn(0.0, 1.0)
+            val control = handover * handover
+            val climb = CLIMB * (fraction - neutral) * control
             vy += (climb - vy) * min(1.0, dt * 5)
             val inBand = target == null || profile.band(watts) == target
-            val pull = if (here != null && (inBand || grace)) PULL * (here.centre - y) else 0.0
+            val pull = if (here != null && (inBand || grace)) PULL * (if (grace) 2 else 1) * (here.centre - y) else 0.0
             y += (vy + pull) * dt
         } else {
             // Resting or waiting: float to the middle of the cave.
@@ -144,11 +165,16 @@ class CaveGame {
 
         for (f in fish) {
             if (f.eaten || f.passed) continue
-            if (f.metre <= metres && abs(y - f.height) < CATCH_RADIUS) {
+            // Caught as it reaches his beak, which is [MOUTH] ahead of his middle.
+            if (f.metre <= metres + MOUTH && abs(y - f.height) < CATCH_RADIUS) {
                 f.eaten = true
                 f.eatenAt = clock
                 f.points = (if (f.gold) 3 else 1) * multiplier
                 score += f.points
+                if (f.gold) {
+                    f.bonus = runner.bonus()
+                    boostedAt = clock
+                }
                 combo++
             } else if (f.metre < metres - 1.0) {
                 f.passed = true
@@ -157,15 +183,32 @@ class CaveGame {
             }
         }
 
-        // A trail of bubbles streaming off behind Tux, faster the faster he swims.
-        if (s.moving && clock >= nextBubble) {
-            nextBubble = clock + 0.06
-            bubbles.addLast(Bubble(metres - 0.6, y + bob - 0.05 + (sin(clock * 37) * 0.05), clock, 3f + (clock * 7 % 1).toFloat() * 4f))
+        // Tux breathes out a puff of bubbles from his beak: slow and small at rest, quick and big
+        // the harder you row, going by the power gauge.
+        val effort = (gauge / 6).coerceIn(0.0, 1.0)
+        if (clock >= nextBreath) {
+            nextBreath = clock + BREATH_SLOW + (BREATH_FAST - BREATH_SLOW) * effort
+            puffLeft = 2 + (effort * 5).toInt()
+            breaths++
         }
-        bubbles.forEach { it.height += 0.25 * dt }
-        while (bubbles.isNotEmpty() && clock - bubbles.first().born > 1.5) bubbles.removeFirst()
+        if (puffLeft > 0 && clock >= nextPuff) {
+            nextPuff = clock + 0.06
+            puffLeft--
+            val jitter = sin(clock * 37) * 0.04
+            bubbles.addLast(Bubble(metres + MOUTH * 0.85, y + bob + 0.06 + jitter, clock, 3f + (clock * 7 % 1).toFloat() * (3f + 3f * effort.toFloat())))
+        }
+        bubbles.forEach { it.height += 0.45 * dt }
+        while (bubbles.isNotEmpty() && clock - bubbles.first().born > BUBBLE_LIFE) bubbles.removeFirst()
         while (slices.size > 2 && slices[1].metre < metres - BEHIND) slices.removeFirst()
         while (fish.isNotEmpty() && fish.first().metre < metres - BEHIND) fish.removeFirst()
+    }
+
+    /** Seconds of grace left: Tux is held level and can't bonk while you get up to speed. */
+    val graceLeft: Double get() = (GRACE - (clock - graceFrom)).coerceAtLeast(0.0)
+
+    /** Starts a grace period now, as when a piece starts or after a pause. */
+    fun easeIn() {
+        graceFrom = clock
     }
 
     /** The cave at [metre], interpolated between slices. */
@@ -190,26 +233,32 @@ class CaveGame {
             nextSlice += SLICE_METRES
             val band = runner.bandAhead((m - metres) / speed.coerceAtLeast(1.5), speed)
             // The slope that rowing at the band's middle produces, per metre at that pace.
-            val slope = band?.let { CLIMB * (it.middle - NEUTRAL) / profile.speedAt(it.middle) } ?: 0.0
+            // Behind the start it's level, so the cave at Tux's start is where he is.
+            val slope = if (m < 0) 0.0 else band?.let { CLIMB * (it.middle - NEUTRAL) / profile.speedAt(it.middle) } ?: 0.0
             base += slope * SLICE_METRES
             // A little undulation for variety, eased in and out around rests.
             undulation += ((if (band != null) 1.0 else 0.0) - undulation) * 0.08
             val wave = undulation * settled(m) * WAVE * sin(2 * PI * m / 55 + 2.1)
             slices.addLast(Slice(m, base + wave, HALF * widthAt(m) + (1 - undulation) * 0.4))
         }
+        // Fish come at irregular gaps, now and then a few together.
         while (nextFish <= metres + LOOKAHEAD + MARGIN) {
             val m = nextFish
-            nextFish += FISH_METRES
+            nextFish += FISH_GAP_MIN + random.nextDouble() * (FISH_GAP_MAX - FISH_GAP_MIN)
             if (runner.bandAhead((m - metres) / speed.coerceAtLeast(1.5), speed) == null && runner.phase != Phase.READY) continue
             val c = sliceAt(m) ?: continue
-            fishCount++
-            // Golden fish sit where rowing at the top or bottom of the band takes you, if there's room.
-            val gold = GOLD_OFFSET.coerceAtMost(c.half - TUX_HALF - 0.05)
-            val (offset, isGold) = when {
-                fishCount % 6 == 0 -> (if (fishCount % 12 == 0) -gold else gold) to true
-                else -> sin(fishCount * 1.7) * 0.1 to false
+            val room = (c.half - TUX_HALF - 0.05).coerceAtLeast(0.0)
+            if (random.nextDouble() < GOLD_CHANCE) {
+                // Golden fish sit where rowing at the top or bottom of the band takes you, if there's room.
+                val side = if (random.nextBoolean()) 1 else -1
+                fish.addLast(Fish(m, c.centre + side * GOLD_OFFSET.coerceAtMost(room), gold = true))
+                continue
             }
-            fish.addLast(Fish(m, c.centre + offset, isGold))
+            val height = c.centre + (random.nextDouble() * 2 - 1) * 0.15
+            val shoal = if (random.nextDouble() < SHOAL_CHANCE) 2 + random.nextInt(2) else 1
+            val rise = (random.nextDouble() * 2 - 1) * 0.08
+            for (k in 0 until shoal) fish.addLast(Fish(m + k * 1.3, (height + k * rise).coerceIn(c.centre - room, c.centre + room), gold = false))
+            nextFish = maxOf(nextFish, m + shoal * 1.3 + FISH_GAP_MIN)
         }
     }
 
@@ -246,7 +295,11 @@ class CaveGame {
         const val BOB = 0.12
         const val BOB_SECONDS = 0.8
         const val SLICE_METRES = 1.0
-        const val FISH_METRES = 4.0
+        /** Metres between one fish (or shoal) and the next, picked at random between these. */
+        const val FISH_GAP_MIN = 6.0
+        const val FISH_GAP_MAX = 16.0
+        const val GOLD_CHANCE = 1.0 / 7
+        const val SHOAL_CHANCE = 0.25
         const val FIRST_FISH = 12.0
         /** Metres of course visible ahead of Tux. */
         const val LOOKAHEAD = 22.0
@@ -256,5 +309,15 @@ class CaveGame {
         const val WARMUP_EXTRA = 0.6
         const val BEHIND = 15.0
         const val CATCH_RADIUS = 0.22
+        /** Metres from Tux's middle to his beak, as drawn. */
+        const val MOUTH = 1.0
+        /** Seconds between breaths when resting and when rowing flat out. */
+        const val BREATH_SLOW = 3.0
+        const val BREATH_FAST = 0.7
+        const val BUBBLE_LIFE = 2.0
+        const val START_DEPTH = 10.0
+        const val METRES_PER_UNIT = 2.0
+        const val LIGHT_FALLOFF = 80.0
+        const val MIN_LIGHT = 0.15
     }
 }

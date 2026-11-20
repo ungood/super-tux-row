@@ -6,8 +6,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
@@ -31,33 +33,34 @@ internal fun hash(i: Int, salt: Int = 0): Float {
 
 private fun wrap(v: Float, size: Float) = ((v % size) + size) % size
 
-private val IceLight = Color(0xFFE8F8FF)
-private val IceMid = Color(0xFFA9D8EE)
+internal val IceLight = Color(0xFFE8F8FF)
+internal val IceMid = Color(0xFFA9D8EE)
 private val IceDeep = Color(0xFF5F9CC0)
 private val RockLight = Color(0xFF4A5A72)
 private val RockMid = Color(0xFF323E52)
 private val RockDeep = Color(0xFF1B2333)
-private val Kelp = Color(0xFF2F8F6E)
-private val KelpLight = Color(0xFF5CC49A)
+private val Sand = Color(0xFF5E6478)
+private val SandLight = Color(0xFF8C93A6)
 private val PenguinBlack = Color(0xFF16181E)
 private val PenguinSheen = Color(0xFF3A4458)
 private val Orange = Color(0xFFFAAA1E)
 
-/** Open water: lighter towards the surface, darker the deeper the camera is. */
-internal fun DrawScope.drawWater(depth: Float) {
-    val dark = depth.coerceIn(0f, 1f)
-    val top = lerp(Color(0xFF1C5A86), Color(0xFF103458), dark)
-    val bottom = lerp(Color(0xFF0E3458), Color(0xFF08203C), dark)
+/** Open water: bright near the surface, fading towards black as [light] falls. */
+internal fun DrawScope.drawWater(light: Float) {
+    val top = lerp(Color(0xFF071A30), Color(0xFF2A78A8), light)
+    val bottom = lerp(Color(0xFF030A16), Color(0xFF0E3A60), light)
     drawRect(Brush.verticalGradient(listOf(top, bottom)))
 }
 
-/** Slanted shafts of light from the surface, swaying slowly and drifting with the camera. */
-internal fun DrawScope.drawLightRays(scroll: Float, clock: Double) {
+/** Slanted shafts of daylight, swaying slowly; they fade out quickly as Tux goes deeper. */
+internal fun DrawScope.drawLightRays(scroll: Float, clock: Double, light: Float) {
+    val strength = light * light
+    if (strength < 0.02f) return
     for (i in 0 until 5) {
         val sway = sin(clock * 0.3 + i * 1.7).toFloat() * 40f
         val x = wrap(hash(i, 1) * size.width * 1.4f - scroll * 0.08f + sway, size.width * 1.4f) - size.width * 0.2f
         val w = 60f + hash(i, 2) * 120f
-        val alpha = 0.05f + 0.04f * sin(clock * 0.5 + i).toFloat()
+        val alpha = (0.06f + 0.04f * sin(clock * 0.5 + i).toFloat()) * strength
         val path = Path().apply {
             moveTo(x, 0f)
             lineTo(x + w, 0f)
@@ -99,14 +102,34 @@ internal fun DrawScope.drawBackdrop(scroll: Float, lift: Float, parallax: Float,
     }
 }
 
-/** Specks drifting in the water, nearer ones moving faster. */
-internal fun DrawScope.drawMarineSnow(scroll: Float, lift: Float, clock: Double) {
+/** Specks drifting in the water, nearer ones moving faster. In the dark they glow faintly. */
+internal fun DrawScope.drawMarineSnow(scroll: Float, lift: Float, clock: Double, light: Float) {
+    val tint = lerp(Color(0xFF7FF5E8), Color.White, light)
     for (i in 0 until 48) {
         val near = 0.3f + hash(i, 10) * 0.7f
         val x = wrap(hash(i, 11) * size.width - scroll * near, size.width)
         val y = wrap(hash(i, 12) * size.height + lift * near + (clock * 12 * near).toFloat() + sin(clock * 0.8 + i).toFloat() * 6f, size.height)
-        drawCircle(Color.White.copy(alpha = 0.12f + 0.25f * near), 1.2f + 2.2f * near, Offset(x, y))
+        val twinkle = if (light < 0.5f) 0.6f + 0.4f * sin(clock * 3 + i * 2.3).toFloat() else 1f
+        drawCircle(tint.copy(alpha = (0.12f + 0.25f * near) * twinkle), 1.2f + 2.2f * near, Offset(x, y))
     }
+}
+
+/**
+ * Darkness closing in as daylight fails: a pool of dim light around Tux at [at], black towards the
+ * edges. Drawn over the world, so everything in it gets darker together.
+ */
+internal fun DrawScope.drawDarkness(at: Offset, light: Float) {
+    val dark = ((1 - light) / (1 - 0.15f)).coerceIn(0f, 1f)
+    if (dark < 0.02f) return
+    val night = Color(0xFF01040A)
+    drawRect(
+        Brush.radialGradient(
+            0f to night.copy(alpha = 0.15f * dark),
+            0.35f to night.copy(alpha = 0.45f * dark),
+            1f to night.copy(alpha = 0.88f * dark),
+            center = at, radius = size.width * 0.75f,
+        ),
+    )
 }
 
 /** One point of a cave wall, on screen. */
@@ -134,107 +157,177 @@ private fun line(edge: List<Offset>) = Path().apply {
     edge.forEachIndexed { i, p -> if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) }
 }
 
-/** The ice ceiling: a glassy rim, frost along the edge and icicles hanging from it. */
+/** The ice ceiling: layered and faceted, glinting, with icicles growing out of its rim. */
 internal fun DrawScope.drawCeiling(points: List<WallPoint>, clock: Double) {
     if (points.size < 2) return
     val edge = craggy(points, 18f, 20)
-    val lowest = edge.maxOf { it.y }
-    drawPath(outline(edge, -10f), Brush.verticalGradient(listOf(IceDeep, IceMid, IceLight), startY = lowest - 320f, endY = lowest))
+    val body = outline(edge, -10f)
     val rim = line(edge)
-    // Strata in the ice, following the rim further up.
-    for (k in 1..4) {
-        translate(0f, -k * 46f - k * k * 6f) {
-            drawPath(rim, IceLight.copy(alpha = 0.35f - k * 0.06f), style = Stroke(width = 3f))
+    drawPath(body, lerp(IceDeep, IceMid, 0.55f))
+
+    clipPath(body) {
+        // Shading in bands that follow the rim, lightest at the edge, so it stays put as the cave
+        // scrolls (a gradient across the screen slides with whatever part of the rim is lowest).
+        for ((width, colour) in listOf(260f to IceMid.copy(alpha = 0.6f), 90f to lerp(IceMid, IceLight, 0.4f), 40f to lerp(IceMid, IceLight, 0.75f))) {
+            drawPath(rim, colour, style = Stroke(width = width, join = StrokeJoin.Round))
+        }
+        // Crystal facets: pale and shadowed planes set into the ice.
+        for (p in points) {
+            val r = hash(p.index, 26)
+            if (r > 0.3f) continue
+            val up = 40f + hash(p.index, 27) * 170f
+            val w = 50f + hash(p.index, 28) * 90f
+            val x = p.x + (hash(p.index, 29) - 0.5f) * 40f
+            val y = p.y - up
+            // Long and irregular, lying along the strata rather than square to them.
+            val facet = Path().apply {
+                moveTo(x - w * 0.6f, y + (hash(p.index, 72) - 0.5f) * 14f)
+                lineTo(x - w * 0.1f, y - 10f - hash(p.index, 73) * 14f)
+                lineTo(x + w * 0.6f, y + (hash(p.index, 74) - 0.5f) * 10f)
+                lineTo(x + w * 0.05f, y + 8f + hash(p.index, 75) * 10f)
+                close()
+            }
+            drawPath(facet, (if (r < 0.15f) Color.White else IceDeep).copy(alpha = 0.1f))
+            drawPath(facet, Color.White.copy(alpha = 0.1f), style = Stroke(width = 1.5f))
+        }
+        // Strata, following the rim further up.
+        for (k in 1..4) {
+            translate(0f, -k * 46f - k * k * 6f) {
+                drawPath(rim, IceLight.copy(alpha = 0.35f - k * 0.06f), style = Stroke(width = 3f))
+            }
+        }
+        // Cracks running up from the rim, some forking: a dark fissure with a bright edge.
+        for (p in points) {
+            if (hash(p.index, 60) > 0.2f) continue
+            var at = Offset(p.x, p.y - 6f)
+            val crack = Path().apply { moveTo(at.x, at.y) }
+            val steps = 4 + (hash(p.index, 69) * 3).toInt()
+            for (k in 0 until steps) {
+                at = Offset(at.x + (hash(p.index, 61 + k) - 0.5f) * 44f, at.y - 16f - hash(p.index, 65 + k) * 26f)
+                crack.lineTo(at.x, at.y)
+                if (k == 1 && hash(p.index, 76) < 0.6f) {
+                    // A branch off to one side.
+                    val side = if (hash(p.index, 77) < 0.5f) -1f else 1f
+                    crack.moveTo(at.x, at.y)
+                    crack.lineTo(at.x + side * 30f, at.y - 20f)
+                    crack.lineTo(at.x + side * 44f, at.y - 46f)
+                    crack.moveTo(at.x, at.y)
+                }
+            }
+            drawPath(crack, IceDeep.copy(alpha = 0.8f), style = Stroke(width = 3.5f, join = StrokeJoin.Round, cap = StrokeCap.Round))
+            translate(1.5f, 1f) { drawPath(crack, Color.White.copy(alpha = 0.8f), style = Stroke(width = 1.5f, join = StrokeJoin.Round)) }
         }
     }
-    drawPath(rim, IceMid.copy(alpha = 0.6f), style = Stroke(width = 26f))
-    drawPath(rim, IceLight, style = Stroke(width = 10f))
+
+    // Icicles start inside the ice, so the rim drawn over them hides the join.
+    for (p in points) {
+        if (hash(p.index, 21) > 0.45f) continue
+        val length = 30f + hash(p.index, 22) * 70f
+        val width = 14f + hash(p.index, 23) * 16f
+        val x = p.x + (hash(p.index, 24) - 0.5f) * 30f
+        drawIcicle(x, p.y - 4f, width, length)
+        if (hash(p.index, 25) < 0.4f) drawIcicle(x + width * 0.7f, p.y - 4f, width * 0.55f, length * 0.5f)
+    }
+
+    drawPath(rim, IceMid, style = Stroke(width = 24f))
+    drawPath(rim, IceLight, style = Stroke(width = 12f))
     drawPath(rim, Color.White, style = Stroke(width = 3f))
 
+    // Glints come and go along the rim.
     for (p in points) {
-        val r = hash(p.index, 21)
-        if (r > 0.45f) continue
-        val length = 24f + hash(p.index, 22) * 70f
-        val width = 10f + hash(p.index, 23) * 14f
-        val x = p.x + (hash(p.index, 24) - 0.5f) * 30f
-        val top = p.y - 6f
-        drawPath(Path().apply {
-            moveTo(x - width / 2, top)
-            lineTo(x + width / 2, top)
-            lineTo(x + width * 0.1f, top + length)
-            close()
-        }, Brush.horizontalGradient(listOf(IceLight, IceMid, IceDeep), startX = x - width / 2, endX = x + width / 2))
-        drawLine(Color.White.copy(alpha = 0.8f), Offset(x - width * 0.25f, top + 2f), Offset(x, top + length * 0.7f), 2f)
-        // Now and then a drip gathers at the tip and falls.
-        if (r < 0.12f) {
-            val t = ((clock * 0.4 + hash(p.index, 25) * 10) % 1.0).toFloat()
-            val drop = if (t < 0.6f) Offset(x + width * 0.1f, top + length + 3f) else Offset(x + width * 0.1f, top + length + (t - 0.6f) * 400f)
-            drawCircle(IceLight.copy(alpha = if (t < 0.6f) t / 0.6f else 1 - (t - 0.6f) / 0.4f), 3.5f, drop)
-        }
+        if (hash(p.index, 70) > 0.15f) continue
+        val t = sin(clock * 1.3 + hash(p.index, 71) * 20).toFloat()
+        if (t > 0.6f) drawSparkle(Offset(p.x, p.y - 4f), 10f * (t - 0.6f) / 0.4f, Color.White)
     }
 }
 
-/** The rock floor: bevelled boulders, kelp swaying, and the odd starfish. */
+/** An icicle hanging from [top]: rim-coloured at the root, clearer towards the tip. */
+private fun DrawScope.drawIcicle(x: Float, top: Float, width: Float, length: Float) {
+    val tip = Offset(x + width * 0.08f, top + length)
+    drawPath(Path().apply {
+        moveTo(x - width / 2, top)
+        lineTo(x + width / 2, top)
+        quadraticTo(x + width * 0.25f, top + length * 0.5f, tip.x, tip.y)
+        quadraticTo(x - width * 0.2f, top + length * 0.5f, x - width / 2, top)
+        close()
+    }, Brush.verticalGradient(listOf(IceLight, IceMid, IceMid.copy(alpha = 0.55f)), startY = top, endY = tip.y))
+    drawLine(Color.White.copy(alpha = 0.85f), Offset(x - width * 0.2f, top + 4f), Offset(x - width * 0.02f, top + length * 0.7f), 2f)
+}
+
+/** The rock floor: kelp rooted behind it, sediment layers, grit and boulders, and life on top. */
 internal fun DrawScope.drawFloor(points: List<WallPoint>, clock: Double) {
     if (points.size < 2) return
     val edge = craggy(points, 22f, 30)
     val highest = edge.minOf { it.y }
-    drawPath(outline(edge, size.height + 10f), Brush.verticalGradient(listOf(RockMid, RockDeep), startY = highest, endY = size.height))
 
-    // Kelp behind the boulders, rooted along the edge.
+    // Kelp first, rooted below the rim, so the ground hides where it grows from.
     for (p in points) {
         if (hash(p.index, 31) > 0.25f) continue
         val strands = 1 + (hash(p.index, 32) * 3).toInt()
-        repeat(strands) { k ->
-            val baseX = p.x + (hash(p.index, 33 + k) - 0.5f) * 40f
-            val height = 60f + hash(p.index, 36 + k) * 120f
-            val phase = hash(p.index, 39 + k) * 6f
-            val path = Path()
-            path.moveTo(baseX, p.y + 8f)
-            val segments = 6
-            var px = baseX
-            var py = p.y + 8f
-            for (s in 1..segments) {
-                val f = s / segments.toFloat()
-                val sway = sin(clock * 1.6 + phase + f * 2.5).toFloat() * 16f * f
-                val nx = baseX + sway
-                val ny = p.y + 8f - height * f
-                path.quadraticTo(px + sway * 0.5f, (py + ny) / 2, nx, ny)
-                px = nx
-                py = ny
-            }
-            drawPath(path, Kelp, style = Stroke(width = 9f, cap = StrokeCap.Round))
-            drawPath(path, KelpLight.copy(alpha = 0.6f), style = Stroke(width = 3f, cap = StrokeCap.Round))
-        }
+        repeat(strands) { k -> drawKelp(p.x + (hash(p.index, 33 + k) - 0.5f) * 40f, p.y + 26f, 80f + hash(p.index, 36 + k) * 120f, hash(p.index, 39 + k) * 6f, clock) }
     }
 
+    val body = outline(edge, size.height + 10f)
+    drawPath(body, Brush.verticalGradient(listOf(RockMid, RockDeep), startY = highest, endY = size.height))
     val rim = line(edge)
-    drawPath(rim, RockLight, style = Stroke(width = 8f))
+    clipPath(body) {
+        // Sediment: darker bands under lighter seams, following the rim down.
+        for (k in 1..4) {
+            translate(0f, k * 38f + k * k * 8f) {
+                drawPath(rim, RockDeep.copy(alpha = 0.5f), style = Stroke(width = 14f))
+                drawPath(rim, RockLight.copy(alpha = 0.22f), style = Stroke(width = 2f))
+            }
+        }
+        // Grit and pebbles set in the rock.
+        for (p in points) {
+            repeat(3) { k ->
+                val h = hash(p.index, 80 + k)
+                if (h > 0.6f) return@repeat
+                val r = 2f + hash(p.index, 84 + k) * 7f
+                val at = Offset(p.x + (hash(p.index, 88 + k) - 0.5f) * 60f, p.y + 20f + hash(p.index, 92 + k) * 220f)
+                drawOval(RockLight.copy(alpha = 0.35f), Offset(at.x - r, at.y - r * 0.7f), Size(r * 2, r * 1.4f))
+            }
+        }
+    }
+    // A sandy top to the rock.
+    drawPath(rim, Sand.copy(alpha = 0.7f), style = Stroke(width = 12f))
+    drawPath(rim, SandLight, style = Stroke(width = 3f))
+
     for (p in points) {
         val r = hash(p.index, 41)
-        if (r < 0.4f) {
-            val w = 20f + hash(p.index, 42) * 36f
-            val h = w * (0.5f + hash(p.index, 43) * 0.3f)
-            val at = Offset(p.x + (hash(p.index, 44) - 0.5f) * 30f, p.y + h * 0.25f)
-            drawOval(RockMid, Offset(at.x - w / 2, at.y - h / 2), Size(w, h))
-            drawOval(RockLight, Offset(at.x - w * 0.35f, at.y - h * 0.45f), Size(w * 0.5f, h * 0.35f))
-        } else if (r > 0.94f) {
-            drawStarfish(Offset(p.x, p.y + 6f), 14f, hash(p.index, 45) * 72f)
+        when {
+            r < 0.3f -> {
+                val w = 20f + hash(p.index, 42) * 36f
+                val h = w * (0.5f + hash(p.index, 43) * 0.3f)
+                val at = Offset(p.x + (hash(p.index, 44) - 0.5f) * 30f, p.y + h * 0.25f)
+                drawOval(RockMid, Offset(at.x - w / 2, at.y - h / 2), Size(w, h))
+                drawOval(RockLight, Offset(at.x - w * 0.35f, at.y - h * 0.45f), Size(w * 0.5f, h * 0.35f))
+            }
+            else -> drawFloorLife(p, r, clock)
         }
     }
 }
 
-private fun DrawScope.drawStarfish(c: Offset, r: Float, angle: Float) {
+private fun DrawScope.drawKelp(baseX: Float, baseY: Float, height: Float, phase: Float, clock: Double) {
     val path = Path()
-    for (i in 0 until 10) {
-        val a = (angle + i * 36f - 90f) * PI.toFloat() / 180f
-        val len = if (i % 2 == 0) r else r * 0.45f
-        val p = Offset(c.x + cos(a) * len, c.y + sin(a) * len)
-        if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
+    path.moveTo(baseX, baseY)
+    val segments = 6
+    var px = baseX
+    var py = baseY
+    for (s in 1..segments) {
+        val f = s / segments.toFloat()
+        val sway = sin(clock * 1.6 + phase + f * 2.5).toFloat() * 16f * f
+        val nx = baseX + sway
+        val ny = baseY - height * f
+        path.quadraticTo(px + sway * 0.5f, (py + ny) / 2, nx, ny)
+        px = nx
+        py = ny
     }
-    path.close()
-    drawPath(path, Color(0xFFE86A6A))
-    drawCircle(Color(0xFFF4A1A1), r * 0.2f, c)
+    // Each strand a slightly different green.
+    val hue = 145f + (phase / 6f - 0.5f) * 40f
+    val shade = 0.48f + (phase * 7 % 1) * 0.2f
+    drawPath(path, Color.hsv(hue, 0.65f, shade), style = Stroke(width = 9f, cap = StrokeCap.Round))
+    drawPath(path, Color.hsv(hue, 0.45f, shade + 0.25f).copy(alpha = 0.6f), style = Stroke(width = 3f, cap = StrokeCap.Round))
 }
 
 /** A bubble: a faint ring with a glint. */

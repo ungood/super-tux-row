@@ -10,6 +10,7 @@ import name.onetrue.supertuxrower.workout.WorkoutRunner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
 
 class CaveGameTest {
     private val dt = 1.0 / 30
@@ -87,7 +88,8 @@ class CaveGameTest {
         val runner = WorkoutRunner(taster, testProfile)
         val game = CaveGame()
         val rower = FakeRower(watts = testProfile.wattsFor(Band.UT2))
-        repeat((5 / dt).toInt()) {
+        // Past the first piece's grace period, which starts with the first stroke.
+        repeat((12 / dt).toInt()) {
             val s = rower.step(dt)
             runner.update(dt, s)
             game.update(dt, runner, s)
@@ -134,5 +136,63 @@ class CaveGameTest {
             game.update(dt, runner, s)
             assertTrue(game.slices.last().metre >= game.metres + CaveGame.LOOKAHEAD + 1)
         }
+    }
+
+    @Test
+    fun `easy rowing takes Tux deeper and darker, hard rowing brings him back up`() {
+        val runner = WorkoutRunner(taster, testProfile)
+        val game = CaveGame()
+        val rower = FakeRower(watts = testProfile.wattsFor(Band.UT2))
+        val depths = mutableListOf<Double>()
+        var steps = 0
+        while (runner.phase != Phase.DONE && steps++ < 20_000) {
+            followWorkout(runner, rower)
+            val s = rower.step(dt)
+            runner.update(dt, s)
+            game.update(dt, runner, s)
+            if (steps % 30 == 0) depths += game.depth
+        }
+        // The Drift warm-up sinks; the Surge pieces climb back.
+        val afterWarmup = depths[60]
+        assertTrue("warm-up from ${depths.first()} to $afterWarmup", afterWarmup > depths.first() + 10)
+        assertTrue("surges climb from $afterWarmup", depths.subList(60, 160).min() < afterWarmup - 5)
+    }
+
+    @Test
+    fun `Tux breathes faster the harder you row`() {
+        fun breathsIn20s(band: Band): Int {
+            val runner = WorkoutRunner(taster, testProfile)
+            val game = CaveGame()
+            val rower = FakeRower(watts = testProfile.wattsFor(band))
+            repeat((20 / dt).toInt()) {
+                val s = rower.step(dt)
+                runner.update(dt, s)
+                game.update(dt, runner, s)
+            }
+            return game.breaths
+        }
+        val easy = breathsIn20s(Band.UT2)
+        val hard = breathsIn20s(Band.AN)
+        assertTrue("easy $easy, hard $hard", hard > easy * 1.5)
+    }
+
+    @Test
+    fun `a slow start after a long wait doesn't sink Tux`() {
+        val runner = WorkoutRunner(taster, testProfile)
+        val game = CaveGame()
+        val rower = FakeRower(watts = 0.0)
+        // Sit at the start screen for a while, then start with a few feeble strokes.
+        repeat((30 / dt).toInt()) { val s = rower.step(dt); runner.update(dt, s); game.update(dt, runner, s) }
+        rower.watts = testProfile.twoKWatts * 0.15
+        repeat((5 / dt).toInt()) {
+            val s = rower.step(dt)
+            runner.update(dt, s)
+            game.update(dt, runner, s)
+            // He goes where the cave goes, but stays near its middle.
+            val centre = game.sliceAt(game.metres)!!.centre
+            assertTrue("${game.y} vs the cave's middle at $centre", abs(game.y - centre) < 0.4)
+        }
+        assertEquals(Phase.WORK, runner.phase)
+        assertEquals("bonks", 0, game.bonks)
     }
 }

@@ -24,7 +24,8 @@ The tablet's address is `TABLET=host:port` in `.env`, which isn't checked in (se
 `example.env`). Never commit a real hostname or IP address. If `adb` can't reach the tablet, adb
 over Wi-Fi was probably reset by a reboot; ask the user to re-enable it (see `docs/tablet.md`).
 Drive the app with `just do` rather than tapping coordinates; it answers in the `Nav` log. Add a
-command to `DebugCommands` when you need one. Screenshot only to look at the UI itself.
+command to `DebugCommands` when you need one; `giant whale` summons a
+big creature, which otherwise turns up only every few minutes. Screenshot only to look at the UI itself.
 `adb shell input tap X Y` works as a last resort; the screen is 1920×1080.
 
 ## Architecture

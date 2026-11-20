@@ -69,6 +69,21 @@ class WorkoutRunnerTest {
     }
 
     @Test
+    fun `golden fish bring the end of a piece closer without changing what was rowed`() {
+        val workout = Workout("10s", "10 s", listOf(Piece(Goal.Time(10), Band.TR)))
+        val runner = WorkoutRunner(workout, testProfile)
+        val rower = FakeRower(watts = testProfile.wattsFor(Band.TR))
+        runner.row(rower, 3.0) // the first stroke starts it at 2.5 s
+        assertEquals("−2 s", runner.bonus())
+        runner.bonus()
+        runner.row(rower, 5.0)
+        assertEquals(Phase.WORK, runner.phase)
+        runner.row(rower, 1.5)
+        assertEquals(Phase.DONE, runner.phase)
+        assertEquals(6.0, runner.results[0].seconds, 0.2)
+    }
+
+    @Test
     fun `distance goals finish at the distance`() {
         val workout = Workout("500", "500m", listOf(Piece(Goal.Distance(500), Band.TR)))
         val runner = WorkoutRunner(workout, testProfile)

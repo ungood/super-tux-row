@@ -38,7 +38,11 @@ classics are built in, from a 5-minute taster to a 2k test.
 (Glide is level). While you're in the target band he's gently kept in the middle; drift out of
 it and he heads for a wall. The cave starts wide while you settle in, then has roomier and
 tighter stretches. Catch fish for points, chain them for a multiplier, and go for the golden ones
-at the edges of the band. Pause stops the clock, and nothing rowed while paused counts.
+at the edges of the band: each one takes a little off the piece. Easy pieces take him deeper, where the daylight fades; hard ones bring
+him back up. Crabs, anemones and sponges live on the floor, and now and then something much bigger
+swims past. Tux breathes harder the harder you row. Rests show a countdown and what's next. Each
+piece starts with a few seconds' grace while you get up to speed. Pause stops the clock, nothing
+rowed while paused counts, and resuming counts you back in.
 
 **Sudo Ergo Es** is the other game: an art piece, like the museum bike that lights a bulb. Your
 rowing keeps a copy of Bob, an uploaded engineer's mind running on a real AI model (Claude Opus,
