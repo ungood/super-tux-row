@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import name.onetrue.supertuxrower.model.Band
 import name.onetrue.supertuxrower.model.Profile
 import name.onetrue.supertuxrower.model.StartingLevel
+import name.onetrue.supertuxrower.model.Steering
 import name.onetrue.supertuxrower.model.formatClock
 import name.onetrue.supertuxrower.model.formatSplit
 import name.onetrue.supertuxrower.model.penguinName
@@ -108,7 +109,8 @@ private fun ProfileCard(profile: Profile, lastUsed: Boolean, onClick: () -> Unit
 fun ProfileEditor(initial: Profile?, onSave: (Profile) -> Unit, onDelete: (() -> Unit)?, onCancel: () -> Unit) {
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var twoK by remember { mutableIntStateOf(initial?.twoKSeconds ?: StartingLevel.FIT.twoKSeconds) }
-    val preview = (initial ?: Profile(name = name, twoKSeconds = twoK)).copy(name = name, twoKSeconds = twoK)
+    var steering by remember { mutableStateOf(initial?.steering ?: Steering.STEADY) }
+    val preview = (initial ?: Profile(name = name, twoKSeconds = twoK)).copy(name = name, twoKSeconds = twoK, steering = steering)
 
     Row(Modifier.fillMaxSize().background(Deep).padding(48.dp), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -132,6 +134,18 @@ fun ProfileEditor(initial: Profile?, onSave: (Profile) -> Unit, onDelete: (() ->
             }
             Text(
                 "Your bands are fractions of the power you hold over a 2k. Faster 2k, faster bands.",
+                color = InkMuted, style = MaterialTheme.typography.bodyMedium,
+            )
+
+            Text("Tux Row 2D steering", style = MaterialTheme.typography.titleMedium, color = InkMuted)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Steering.entries.forEach { s ->
+                    if (steering == s) Button({ steering = s }) { Text(s.label) }
+                    else OutlinedButton({ steering = s }) { Text(s.label) }
+                }
+            }
+            Text(
+                "Relaxed: Tux drifts slowly when you're off target, and near the band counts. Sharp: he answers every change.",
                 color = InkMuted, style = MaterialTheme.typography.bodyMedium,
             )
 

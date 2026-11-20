@@ -37,8 +37,8 @@ private fun wrap(v: Float, size: Float) = ((v % size) + size) % size
 internal val IceLight = Color(0xFFE8F8FF)
 internal val IceMid = Color(0xFFA9D8EE)
 private val IceDeep = Color(0xFF5F9CC0)
-private val RockLight = Color(0xFF4A5A72)
-private val RockMid = Color(0xFF323E52)
+internal val RockLight = Color(0xFF4A5A72)
+internal val RockMid = Color(0xFF323E52)
 private val RockDeep = Color(0xFF1B2333)
 private val Sand = Color(0xFF5E6478)
 private val SandLight = Color(0xFF8C93A6)
@@ -134,7 +134,7 @@ internal fun DrawScope.drawDarkness(at: Offset, light: Float) {
 }
 
 /** One point of a cave wall, on screen. */
-internal class WallPoint(val index: Int, val x: Float, val y: Float)
+internal class WallPoint(val index: Int, val x: Float, val y: Float, val light: Float = 1f)
 
 /** A craggy outline through [points], with a jittered midpoint between each pair. */
 private fun craggy(points: List<WallPoint>, jitter: Float, salt: Int): List<Offset> {
@@ -191,6 +191,7 @@ internal fun DrawScope.drawCeiling(points: List<WallPoint>, clock: Double) {
             drawPath(facet, (if (r < 0.15f) Color.White else IceDeep).copy(alpha = 0.1f))
             drawPath(facet, Color.White.copy(alpha = 0.1f), style = Stroke(width = 1.5f))
         }
+        drawFrozen(points)
         // Strata, following the rim further up.
         for (k in 1..4) {
             translate(0f, -k * 46f - k * k * 6f) {
@@ -255,15 +256,33 @@ private fun DrawScope.drawIcicle(x: Float, top: Float, width: Float, length: Flo
     drawLine(Color.White.copy(alpha = 0.85f), Offset(x - width * 0.2f, top + 4f), Offset(x - width * 0.02f, top + length * 0.7f), 2f)
 }
 
-/** The rock floor: kelp rooted behind it, sediment layers, grit and boulders, and life on top. */
-internal fun DrawScope.drawFloor(points: List<WallPoint>, clock: Double) {
+/**
+ * Now and then a wreck on the floor, about one in 400 m. Drawn before the ice and the floor, so the
+ * floor buries its lower half and the ice is never behind it. It's looked for a little off screen
+ * too, as it's big.
+ */
+internal fun DrawScope.drawWrecks(points: List<WallPoint>, life: Life) {
     if (points.size < 2) return
+    val first = points.first()
+    val step = (points.last().x - first.x) / (points.last().index - first.index).coerceAtLeast(1)
+    val showWreck = Summon.only == "wreck"
+    for (i in first.index - WRECK_METRES..points.last().index + WRECK_METRES) {
+        if (if (showWreck) i % 25 != 0 else hash(i, 210) > 0.0025f) continue
+        val near = points[(i - first.index).coerceIn(0, points.lastIndex)]
+        drawWreck(Offset(first.x + (i - first.index) * step, near.y + 30f), WRECK_METRES * step, i, life.light)
+    }
+}
+
+/** The rock floor: kelp rooted behind it, sediment layers, grit and boulders, and life on top. */
+internal fun DrawScope.drawFloor(points: List<WallPoint>, life: Life) {
+    if (points.size < 2) return
+    val clock = life.clock
     val edge = craggy(points, 22f, 30)
     val highest = edge.minOf { it.y }
 
-    // Kelp first, rooted below the rim, so the ground hides where it grows from.
+    // Kelp first, rooted below the rim, so the ground hides where it grows from. It needs light.
     for (p in points) {
-        if (hash(p.index, 31) > 0.25f) continue
+        if (hash(p.index, 31) > 0.18f || p.light < 0.35f) continue
         val strands = 1 + (hash(p.index, 32) * 3).toInt()
         repeat(strands) { k -> drawKelp(p.x + (hash(p.index, 33 + k) - 0.5f) * 40f, p.y + 26f, 80f + hash(p.index, 36 + k) * 120f, hash(p.index, 39 + k) * 6f, clock) }
     }
@@ -289,6 +308,7 @@ internal fun DrawScope.drawFloor(points: List<WallPoint>, clock: Double) {
                 drawOval(RockLight.copy(alpha = 0.35f), Offset(at.x - r, at.y - r * 0.7f), Size(r * 2, r * 1.4f))
             }
         }
+        drawFossils(points)
     }
     // A sandy top to the rock.
     drawPath(rim, Sand.copy(alpha = 0.7f), style = Stroke(width = 12f))
@@ -301,17 +321,19 @@ internal fun DrawScope.drawFloor(points: List<WallPoint>, clock: Double) {
         val after = points[(i + 1).coerceAtMost(points.lastIndex)]
         val slope = (atan2(after.y - before.y, after.x - before.x) * 180 / PI).toFloat()
         when {
-            r < 0.3f -> {
+            r < 0.25f && Summon.only == null -> {
                 val w = 20f + hash(p.index, 42) * 36f
                 val h = w * (0.5f + hash(p.index, 43) * 0.3f)
                 val at = Offset(p.x + (hash(p.index, 44) - 0.5f) * 30f, p.y + h * 0.25f)
                 drawOval(RockMid, Offset(at.x - w / 2, at.y - h / 2), Size(w, h))
                 drawOval(RockLight, Offset(at.x - w * 0.35f, at.y - h * 0.45f), Size(w * 0.5f, h * 0.35f))
             }
-            else -> drawFloorLife(p, r, clock, slope)
+            else -> drawFloorLife(p, r, life, slope)
         }
     }
 }
+
+private const val WRECK_METRES = 8
 
 private fun DrawScope.drawKelp(baseX: Float, baseY: Float, height: Float, phase: Float, clock: Double) {
     val path = Path()

@@ -25,7 +25,7 @@ object DebugCommands {
     val commands: SharedFlow<String> = flow
 
     /** Commands the workout screen handles; the app handles the rest. */
-    val WORKOUT = setOf("pause", "resume", "skip", "end", "compact", "full")
+    val WORKOUT = setOf("pause", "resume", "skip", "end", "compact", "full", "mute", "unmute", "volume", "eat")
 
     /** Registers the receiver while in composition, in debuggable builds only. */
     @Composable

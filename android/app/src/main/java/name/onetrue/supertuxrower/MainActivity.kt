@@ -34,6 +34,11 @@ import name.onetrue.supertuxrower.ui.TuxRowModesScreen
 import name.onetrue.supertuxrower.ui.ProfileEditor
 import name.onetrue.supertuxrower.ui.ProfilesScreen
 import name.onetrue.supertuxrower.ui.SummaryScreen
+import name.onetrue.supertuxrower.ui.Summon
+import name.onetrue.supertuxrower.ui.DrifterNames
+import name.onetrue.supertuxrower.ui.FloorKindNames
+import name.onetrue.supertuxrower.ui.GiantNames
+import name.onetrue.supertuxrower.ui.MidwaterNames
 import name.onetrue.supertuxrower.ui.WorkoutScreen
 import name.onetrue.supertuxrower.workout.WorkoutRunner
 import kotlinx.coroutines.delay
@@ -159,8 +164,17 @@ private fun App(
                     ?: Log.i(NAV, "No profile called $arg: ${profiles.joinToString { it.name }}")
                 verb == "back" -> back()
                 verb == "giant" -> {
-                    name.onetrue.supertuxrower.ui.Summon.kind = arg.ifEmpty { "whale" }
-                    name.onetrue.supertuxrower.ui.Summon.at = Double.NaN
+                    Summon.kind = arg.lowercase().ifEmpty { "whale" }
+                    if (Summon.kind !in GiantNames) Log.i(NAV, "No giant called $arg: ${GiantNames.joinToString()}")
+                }
+                verb == "light" -> {
+                    Summon.light = arg.toFloatOrNull()?.coerceIn(0f, 1f)
+                    Log.i(NAV, Summon.light?.let { "Light $it" } ?: "Light as the game has it")
+                }
+                verb == "show" -> {
+                    val all = FloorKindNames + "wreck" + "buried" + MidwaterNames + DrifterNames
+                    Summon.only = arg.lowercase().takeIf { it in all }
+                    Log.i(NAV, Summon.only?.let { "Showing $it" } ?: "Showing everything as usual. Kinds: ${all.joinToString()}")
                 }
                 verb == "sim" -> onSimulate(true)
                 verb == "rower" -> onSimulate(false)
@@ -170,7 +184,7 @@ private fun App(
                 verb == "workout" && p != null -> Library.workouts.firstOrNull { looseName(it.name) == looseName(arg) }
                     ?.let { screen = Screen.Rowing(WorkoutRunner(it, p)) }
                     ?: Log.i(NAV, "No workout called $arg: ${Library.workouts.joinToString { it.name }}")
-                else -> Log.i(NAV, (if (verb == "help") "Commands:" else "Unknown command $cmd. Try:") + " profile <name>, games, tuxrow, workout <name>, back, giant <whale|orca|squid|octopus>, " +
+                else -> Log.i(NAV, (if (verb == "help") "Commands:" else "Unknown command $cmd. Try:") + " profile <name>, games, tuxrow, workout <name>, back, giant <kind>, show <kind|off>, light <0-1|off>, eat <fish|gold|jelly|comb|seahorse|puffer>, volume <0-100>, " +
                     "sim, rower, ${DebugCommands.WORKOUT.joinToString()}")
             }
         }

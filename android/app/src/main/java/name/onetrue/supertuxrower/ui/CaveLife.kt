@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
+import name.onetrue.supertuxrower.game.Cue
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -24,23 +25,81 @@ import kotlin.math.sin
  */
 
 /**
- * Something living on the floor at [p], chosen by [r] (a hash from 0.3 up; most are bare). Things
+ * What the cave's life needs to know each frame: the time, the daylight, where Tux is on screen
+ * (some creatures react as he passes) and where to send the sounds they make. [cue]'s key names
+ * the creature, so a sound plays once per visit rather than every frame.
+ */
+internal class Life(val clock: Double, val light: Float, val tux: Offset, val cue: (Cue, Int) -> Unit = { _, _ -> })
+
+/** How close Tux is to [x] on screen, 1 right beside it and 0 from [reach] away. */
+internal fun Life.near(x: Float, reach: Float = 260f) = (1 - abs(x - tux.x) / reach).coerceIn(0f, 1f)
+
+/** A spot on the floor for something to live: [at] on the rim, the floor's [slope] in degrees. */
+internal class FloorSpot(val at: Offset, val seed: Int, val slope: Float)
+
+/** A kind of floor life, its share of the floor's spots, and the daylight it lives in. */
+private class FloorKind(
+    val name: String,
+    val share: Float,
+    val minLight: Float = 0f,
+    val maxLight: Float = 1f,
+    val draw: DrawScope.(FloorSpot, Life) -> Unit,
+)
+
+/** Things that crawl lie along the floor; things that grow stand upright. */
+private fun crawling(draw: DrawScope.(FloorSpot, Life) -> Unit): DrawScope.(FloorSpot, Life) -> Unit = { s, l -> rotate(s.slope, pivot = s.at) { draw(s, l) } }
+
+/**
+ * In order from r = 0.25 (below that are boulders). A spot whose kind doesn't live at its depth is
+ * bare, as are spots past the last, so about two thirds of the floor is.
+ */
+private val FloorKinds = listOf(
+    FloorKind("anemone", 0.045f) { s, l -> drawAnemone(s.at, s.seed, l.clock) },
+    FloorKind("sponge", 0.03f) { s, l -> drawSponge(s.at, s.seed, l.clock) },
+    FloorKind("tubeworms", 0.025f, maxLight = 0.7f) { s, l -> drawTubeWorms(s.at, s.seed, l.clock) },
+    FloorKind("crab", 0.02f, minLight = 0.3f, draw = crawling { s, l -> drawCrab(s.at, s.seed, l.clock) }),
+    FloorKind("starfish", 0.015f, draw = crawling { s, _ -> drawStarfish(Offset(s.at.x, s.at.y + 2f), 12f + hash(s.seed, 46) * 6f, hash(s.seed, 45) * 72f, s.seed) }),
+    FloorKind("urchin", 0.02f, minLight = 0.35f) { s, l -> drawUrchins(s.at, s.seed, l.clock) },
+    FloorKind("coral", 0.02f, minLight = 0.4f) { s, l -> drawSeaFan(s.at, s.seed, l.clock) },
+    FloorKind("brittlestar", 0.015f, maxLight = 0.7f, draw = crawling { s, l -> drawBrittleStar(s.at, s.seed, l.clock) }),
+    FloorKind("featherduster", 0.015f, minLight = 0.3f) { s, l -> drawFeatherDusters(s.at, s.seed, l) },
+    FloorKind("hermitcrab", 0.012f, minLight = 0.45f, draw = crawling { s, l -> drawHermitCrab(s.at, s.seed, l.clock) }),
+    FloorKind("seacucumber", 0.012f, maxLight = 0.8f, draw = crawling { s, l -> drawSeaCucumber(s.at, s.seed, l.clock) }),
+    FloorKind("nudibranch", 0.012f, minLight = 0.4f, draw = crawling { s, l -> drawNudibranch(s.at, s.seed, l.clock) }),
+    FloorKind("clam", 0.008f, minLight = 0.5f, draw = crawling { s, l -> drawClam(s.at, s.seed, l) }),
+    FloorKind("flatfish", 0.01f, minLight = 0.3f, draw = crawling { s, l -> drawFlatfish(s.at, s.seed, l) }),
+    FloorKind("lobster", 0.01f, minLight = 0.3f, draw = crawling { s, l -> drawLobster(s.at, s.seed, l.clock) }),
+    FloorKind("seaspider", 0.012f, maxLight = 0.6f) { s, l -> drawSeaSpider(s.at, s.seed, l.clock) },
+    FloorKind("eel", 0.008f, minLight = 0.25f) { s, l -> drawEel(s.at, s.seed, l) },
+    FloorKind("isopod", 0.015f, maxLight = 0.35f, draw = crawling { s, l -> drawIsopod(s.at, s.seed, l.clock) }),
+    FloorKind("anchor", 0.003f, draw = crawling { s, _ -> drawAnchor(s.at, s.seed) }),
+)
+
+/** The names `just do show` accepts for floor life. */
+internal val FloorKindNames get() = FloorKinds.map { it.name }
+
+/**
+ * Something living on the floor at [p], chosen by [r] (a hash from 0.3 up; some are bare). Things
  * that grow stand upright; things that crawl lie along the floor's [slope], in degrees.
  */
-internal fun DrawScope.drawFloorLife(p: WallPoint, r: Float, clock: Double, slope: Float) {
+internal fun DrawScope.drawFloorLife(p: WallPoint, r: Float, life: Life, slope: Float) {
     val seed = p.index
-    val at = Offset(p.x + (hash(seed, 100) - 0.5f) * 24f, p.y + 4f)
-    when {
-        r < 0.37f -> drawAnemone(at, seed, clock)
-        r < 0.43f -> drawSponge(at, seed)
-        r < 0.48f -> drawTubeWorms(at, seed, clock)
-        r < 0.51f -> rotate(slope, pivot = at) { drawCrab(at, seed, clock) }
-        r < 0.54f -> rotate(slope, pivot = at) { drawStarfish(Offset(at.x, at.y + 2f), 12f + hash(seed, 46) * 6f, hash(seed, 45) * 72f, seed) }
+    val spot = FloorSpot(Offset(p.x + (hash(seed, 100) - 0.5f) * 24f, p.y + 4f), seed, slope)
+    // Showing one kind off: it takes every few spots, wherever it would otherwise live.
+    Summon.only?.let { only ->
+        FloorKinds.firstOrNull { it.name == only }?.let { if (r < 0.35f) it.draw(this, spot, life); return }
+    }
+    var from = 0.25f
+    for (kind in FloorKinds) {
+        from += kind.share
+        if (r >= from) continue
+        if (p.light in kind.minLight..kind.maxLight) kind.draw(this, spot, life)
+        return
     }
 }
 
 /** A hue from [hues], nudged a little either way, so no two look quite the same. */
-private fun pickHue(seed: Int, salt: Int, hues: List<Float>, spread: Float = 12f): Float {
+internal fun pickHue(seed: Int, salt: Int, hues: List<Float>, spread: Float = 12f): Float {
     val base = hues[(hash(seed, salt) * hues.size).toInt().coerceAtMost(hues.lastIndex)]
     return ((base + (hash(seed, salt + 1) - 0.5f) * 2 * spread) + 360f) % 360f
 }
@@ -69,16 +128,21 @@ private fun DrawScope.drawAnemone(base: Offset, seed: Int, clock: Double) {
     drawRoundRect(colour.copy(alpha = 0.9f), Offset(base.x - 9f * size, top.y - 2f), Size(18f * size, base.y - top.y + 6f), androidx.compose.ui.geometry.CornerRadius(6f))
 }
 
-/** A cluster of tube sponges, open at the top. */
-private fun DrawScope.drawSponge(base: Offset, seed: Int) {
+/** A cluster of tube sponges, open at the top, slowly breathing out wisps of water. */
+private fun DrawScope.drawSponge(base: Offset, seed: Int, clock: Double) {
     // Mostly ochres and oranges, sometimes purple or red.
     val hue = pickHue(seed, 110, listOf(20f, 35f, 48f, 48f, 285f, 355f), spread = 8f)
     val tubes = 2 + (hash(seed, 111) * 3).toInt()
     for (k in 0 until tubes) {
         val colour = Color.hsv(hue, 0.55f + hash(seed, 125 + k) * 0.25f, 0.6f + hash(seed, 128 + k) * 0.3f)
         val w = 14f + hash(seed, 112 + k) * 8f
-        val h = 26f + hash(seed, 116 + k) * 40f
-        val x = base.x + (k - (tubes - 1) / 2f) * 15f
+        val h = (26f + hash(seed, 116 + k) * 40f) * (1 + 0.05f * sin(clock * 0.8 + k * 1.3).toFloat())
+        val x = base.x + (k - (tubes - 1) / 2f) * 15f + sin(clock * 0.6 + k + seed).toFloat() * 2f
+        // Specks drifting up out of the top as it pumps water through.
+        repeat(3) { j ->
+            val rise = ((clock * 0.4 + j / 3.0 + hash(seed, 140 + k) ) % 1.0).toFloat()
+            drawCircle(Color.White.copy(alpha = 0.35f * (1 - rise)), 1.8f, Offset(x + sin(clock * 2 + j).toFloat() * 4f, base.y - h - rise * 40f))
+        }
         drawRoundRect(colour, Offset(x - w / 2, base.y - h), Size(w, h + 6f), androidx.compose.ui.geometry.CornerRadius(w / 2))
         drawOval(colour.copy(red = colour.red * 0.5f, green = colour.green * 0.5f, blue = colour.blue * 0.5f), Offset(x - w * 0.35f, base.y - h + 2f), Size(w * 0.7f, 6f))
         // Pores.
@@ -155,288 +219,3 @@ internal fun DrawScope.drawStarfish(c: Offset, r: Float, angle: Float, seed: Int
     drawPath(path, Color.hsv(hue, 0.6f, 0.9f))
     drawCircle(Color.hsv(hue, 0.3f, 1f), r * 0.2f, c)
 }
-
-/**
- * Schools of small fish in the middle distance, muted so they don't compete with the fish Tux can
- * catch. Each stretch of 900 parallax pixels has a school about half the time.
- */
-internal fun DrawScope.drawSchools(scroll: Float, clock: Double, light: Float) {
-    val parallax = 0.35f
-    val chunk = 900f
-    val offset = scroll * parallax
-    // Solid, a little lighter than the water so they read without drawing the eye.
-    val colour = lerp(Color(0xFF0C2236), Color(0xFF3D7DAA), light)
-    for (i in floor((offset - chunk) / chunk).toInt()..floor((offset + size.width + chunk) / chunk).toInt()) {
-        if (hash(i, 150) > 0.5f) continue
-        val phase = hash(i, 151) * 6f
-        val swim = sin(clock * 0.12 + phase)
-        val facing = if (cos(clock * 0.12 + phase) >= 0) 1f else -1f
-        val centre = Offset(
-            i * chunk - offset + hash(i, 152) * chunk * 0.6f + swim.toFloat() * 160f,
-            size.height * (0.3f + hash(i, 153) * 0.4f),
-        )
-        val count = 5 + (hash(i, 154) * 7).toInt()
-        for (k in 0 until count) {
-            val at = Offset(
-                centre.x + (hash(i * 31 + k, 155) - 0.5f) * 140f,
-                centre.y + (hash(i * 31 + k, 156) - 0.5f) * 60f + sin(clock * 2 + k).toFloat() * 3f,
-            )
-            drawTinyFish(at, facing, colour, clock + k)
-        }
-    }
-}
-
-private fun DrawScope.drawTinyFish(at: Offset, facing: Float, colour: Color, clock: Double) {
-    val beat = sin(clock * 10).toFloat() * 3f
-    drawPath(Path().apply {
-        moveTo(at.x - facing * 8f, at.y)
-        lineTo(at.x - facing * 15f, at.y - 5f + beat)
-        lineTo(at.x - facing * 15f, at.y + 5f + beat)
-        close()
-    }, colour)
-    drawOval(colour, Offset(at.x - 10f, at.y - 4f), Size(20f, 8f))
-}
-
-/**
- * Now and then something big passes far behind the cave: a whale near the surface, a squid or an
- * octopus at any depth. Each stretch of 5000 parallax pixels (roughly 300 m of rowing, though they
- * swim too) holds one about a third of the time, so they stay a surprise.
- */
-/** Sends a big creature across the screen now, for checking how they look (`just do giant whale`). */
-object Summon {
-    var kind: String? = null
-    internal var at = Double.NaN
-}
-
-internal fun DrawScope.drawGiants(scroll: Float, clock: Double, light: Float) {
-    // Solid, so their parts don't show through each other, and darker than the water around them.
-    val silhouette = lerp(Color(0xFF040C17), Color(0xFF143A58), light)
-    Summon.kind?.let { kind ->
-        if (Summon.at.isNaN()) Summon.at = clock
-        val speed = if (kind == "orca") ORCA_SPEED else 160.0
-        val x = size.width + 500f - ((clock - Summon.at) * speed).toFloat()
-        val at = Offset(x, size.height * 0.5f)
-        scale(GIANT_SCALE, pivot = at) {
-            when (kind) {
-                "whale" -> drawWhale(at, silhouette, clock)
-                "orca" -> drawOrcaPass(at, silhouette, clock)
-                "squid" -> drawSquid(at, silhouette, clock, light)
-                else -> drawOctopus(at, silhouette, clock, light)
-            }
-        }
-        if (x < -600f) Summon.kind = null
-    }
-    val parallax = 0.25f
-    val chunk = 5000f
-    // They swim towards Tux as well as scrolling past, so they come by even when you're slow.
-    val offset = scroll * parallax + (clock * 14).toFloat()
-    for (i in floor((offset - chunk) / chunk).toInt()..floor((offset + size.width + chunk) / chunk).toInt()) {
-        if (hash(i, 160) > 0.33f) continue
-        val x = i * chunk - offset + hash(i, 161) * (chunk - 1500f)
-        if (x < -1200f || x > size.width + 1200f) continue
-        // The camera keeps the cave mid-screen, so they swim there too, not up behind the ice.
-        val y = size.height * (0.38f + hash(i, 162) * 0.24f)
-        val kind = hash(i, 163)
-        scale(GIANT_SCALE, pivot = Offset(x, y)) {
-            when {
-                kind < 0.3f && light > 0.35f -> drawWhale(Offset(x, y), silhouette, clock)
-                // An orca hunts: from when it comes in at the right, it covers ground much faster.
-                kind < 0.5f && light > 0.3f -> {
-                    val entry = size.width + 700f
-                    drawOrcaPass(Offset(entry - (entry - x) * 3.5f, y), silhouette, clock)
-                }
-                kind < 0.75f -> drawSquid(Offset(x, y), silhouette, clock, light)
-                else -> drawOctopus(Offset(x, y), silhouette, clock, light)
-            }
-        }
-    }
-}
-
-private const val GIANT_SCALE = 1.5f
-
-/** A whale swimming left, its flukes beating slowly. */
-private fun DrawScope.drawWhale(c: Offset, colour: Color, clock: Double) {
-    val beat = sin(clock * 1.1).toFloat()
-    val belly = lerp(colour, Color.White, 0.12f)
-    // Flukes, at the end of a tapering tail.
-    rotate(beat * 10f, pivot = Offset(c.x + 300f, c.y)) {
-        drawPath(Path().apply {
-            moveTo(c.x + 280f, c.y)
-            quadraticTo(c.x + 360f, c.y - 70f, c.x + 400f, c.y - 60f)
-            quadraticTo(c.x + 370f, c.y, c.x + 400f, c.y + 60f)
-            quadraticTo(c.x + 360f, c.y + 70f, c.x + 280f, c.y)
-        }, colour)
-    }
-    drawPath(Path().apply {
-        moveTo(c.x - 320f, c.y + 10f)
-        quadraticTo(c.x - 320f, c.y - 80f, c.x - 150f, c.y - 85f)
-        quadraticTo(c.x + 120f, c.y - 80f, c.x + 300f, c.y - 8f)
-        lineTo(c.x + 300f, c.y + 8f)
-        quadraticTo(c.x + 100f, c.y + 70f, c.x - 150f, c.y + 70f)
-        quadraticTo(c.x - 300f, c.y + 65f, c.x - 320f, c.y + 10f)
-    }, colour)
-    // Throat grooves and a flipper.
-    for (k in 0..3) drawLine(belly, Offset(c.x - 280f + k * 6f, c.y + 30f + k * 8f), Offset(c.x - 60f, c.y + 38f + k * 8f), 3f)
-    rotate(-beat * 8f + 20f, pivot = Offset(c.x - 120f, c.y + 40f)) {
-        drawOval(colour, Offset(c.x - 130f, c.y + 30f), Size(120f, 26f))
-    }
-    drawCircle(Color.White.copy(alpha = 0.25f), 6f, Offset(c.x - 230f, c.y - 10f))
-}
-
-private const val ORCA_SPEED = 520.0
-
-/**
- * An orca on the hunt, at [c] as it crosses the screen: it swoops down and up, banking along its
- * path, and as it passes Tux it opens its jaws.
- */
-private fun DrawScope.drawOrcaPass(c: Offset, colour: Color, clock: Double) {
-    val wave = 260f
-    val dip = 90f
-    val at = Offset(c.x, c.y + sin(c.x / wave) * dip)
-    // Pointing along its path: it swims left, so a rising path to the right means nose down.
-    val slope = cos(c.x / wave) * dip / wave
-    val bank = (kotlin.math.atan(slope) * 180 / PI).toFloat()
-    val tux = size.width * 0.3f
-    val jaw = (1 - abs(c.x - tux) / 380f).coerceIn(0f, 1f)
-    rotate(bank, pivot = at) { drawOrca(at, colour, clock, jaw) }
-}
-
-/**
- * An orca swimming left: smaller than the whale, with a fast tail, a tall dorsal fin and the white
- * eye patch and belly. [jaw] from 0 to 1 opens its mouth.
- */
-private fun DrawScope.drawOrca(c: Offset, colour: Color, clock: Double, jaw: Float) {
-    val beat = sin(clock * 6).toFloat()
-    val dark = lerp(Color(0xFF02060C), colour, 0.35f)
-    val white = lerp(Color(0xFFE8F0F4), colour, 0.45f)
-    rotate(beat * 16f, pivot = Offset(c.x + 150f, c.y)) {
-        drawPath(Path().apply {
-            moveTo(c.x + 140f, c.y)
-            quadraticTo(c.x + 190f, c.y - 40f, c.x + 215f, c.y - 36f)
-            quadraticTo(c.x + 195f, c.y, c.x + 215f, c.y + 36f)
-            quadraticTo(c.x + 190f, c.y + 40f, c.x + 140f, c.y)
-        }, dark)
-    }
-    // Dorsal fin, tall and slightly swept back.
-    drawPath(Path().apply {
-        moveTo(c.x - 20f, c.y - 44f)
-        quadraticTo(c.x - 10f, c.y - 110f, c.x + 20f, c.y - 130f)
-        quadraticTo(c.x + 10f, c.y - 80f, c.x + 40f, c.y - 40f)
-        close()
-    }, dark)
-    val body = Path().apply {
-        moveTo(c.x - 170f, c.y + 6f)
-        quadraticTo(c.x - 165f, c.y - 50f, c.x - 60f, c.y - 50f)
-        quadraticTo(c.x + 80f, c.y - 44f, c.x + 150f, c.y - 6f)
-        lineTo(c.x + 150f, c.y + 6f)
-        quadraticTo(c.x + 60f, c.y + 46f, c.x - 60f, c.y + 46f)
-        quadraticTo(c.x - 160f, c.y + 42f, c.x - 170f, c.y + 6f)
-    }
-    drawPath(body, dark)
-    clipPath(body) {
-        // White belly, sweeping up behind.
-        drawPath(Path().apply {
-            moveTo(c.x - 175f, c.y + 14f)
-            quadraticTo(c.x - 60f, c.y + 10f, c.x + 10f, c.y + 22f)
-            quadraticTo(c.x + 50f, c.y + 6f, c.x + 80f, c.y - 6f)
-            lineTo(c.x + 70f, c.y + 60f)
-            lineTo(c.x - 175f, c.y + 60f)
-            close()
-        }, white)
-        // Grey saddle behind the fin.
-        drawOval(lerp(dark, white, 0.35f), Offset(c.x + 10f, c.y - 52f), Size(70f, 22f))
-    }
-    // Eye patch and flipper.
-    drawOval(white, Offset(c.x - 135f, c.y - 30f), Size(48f, 18f))
-    rotate(25f + beat * 6f, pivot = Offset(c.x - 80f, c.y + 30f)) {
-        drawOval(dark, Offset(c.x - 95f, c.y + 22f), Size(60f, 22f))
-    }
-    if (jaw > 0.05f) {
-        // The mouth gapes from the snout back to the corner, teeth top and bottom.
-        val gape = 34f * jaw
-        val corner = Offset(c.x - 95f, c.y + 6f)
-        val top = c.y + 2f
-        val bottom = top + gape
-        drawPath(Path().apply {
-            moveTo(c.x - 176f, top)
-            lineTo(corner.x, corner.y)
-            lineTo(c.x - 168f, bottom)
-            close()
-        }, lerp(Color(0xFF5A1620), colour, 0.3f))
-        val teeth = lerp(Color.White, colour, 0.25f)
-        for (k in 0 until 6) {
-            val f = k / 6f
-            val x = c.x - 170f + f * 62f
-            val upper = top + (corner.y - top) * f
-            val lower = bottom + (corner.y - bottom) * f
-            drawPath(Path().apply { moveTo(x, upper); lineTo(x + 5f, upper); lineTo(x + 2.5f, upper + 8f * jaw); close() }, teeth)
-            drawPath(Path().apply { moveTo(x + 4f, lower); lineTo(x + 9f, lower); lineTo(x + 6.5f, lower - 8f * jaw); close() }, teeth)
-        }
-    }
-}
-
-/** A squid jetting left: the mantle leads, the arms trail and bunch with each pulse. */
-private fun DrawScope.drawSquid(c: Offset, colour: Color, clock: Double, light: Float) {
-    val pulse = (sin(clock * 2.2).toFloat() + 1) / 2
-    val bob = sin(clock * 0.7).toFloat() * 20f
-    val at = Offset(c.x, c.y + bob)
-    drawPath(Path().apply {
-        moveTo(at.x - 150f, at.y)
-        quadraticTo(at.x - 60f, at.y - 50f * (0.9f + pulse * 0.2f), at.x + 60f, at.y - 34f)
-        lineTo(at.x + 60f, at.y + 34f)
-        quadraticTo(at.x - 60f, at.y + 50f * (0.9f + pulse * 0.2f), at.x - 150f, at.y)
-    }, colour)
-    // Fins at the tip.
-    drawPath(Path().apply {
-        moveTo(at.x - 150f, at.y)
-        lineTo(at.x - 100f, at.y - 46f)
-        lineTo(at.x - 80f, at.y)
-        lineTo(at.x - 100f, at.y + 46f)
-        close()
-    }, colour)
-    for (k in 0 until 8) {
-        val spread = (k - 3.5f) / 3.5f
-        val length = (k % 3 + 2) * 45f * (0.8f + 0.4f * pulse)
-        val path = Path().apply {
-            moveTo(at.x + 60f, at.y + spread * 26f)
-            quadraticTo(
-                at.x + 60f + length * 0.5f, at.y + spread * (30f + 30f * pulse) + sin(clock * 3 + k).toFloat() * 14f,
-                at.x + 60f + length, at.y + spread * (20f + 50f * pulse),
-            )
-        }
-        drawPath(path, colour, style = Stroke(width = 9f - abs(spread) * 3f, cap = StrokeCap.Round))
-    }
-    drawEye(Offset(at.x + 40f, at.y - 10f), 9f, light)
-}
-
-/** An octopus drifting by, arms curling. */
-private fun DrawScope.drawOctopus(c: Offset, colour: Color, clock: Double, light: Float) {
-    val bob = sin(clock * 0.9).toFloat() * 16f
-    val at = Offset(c.x, c.y + bob)
-    for (k in 0 until 8) {
-        val spread = (k - 3.5f) / 3.5f
-        val curl = sin(clock * 1.4 + k * 0.8).toFloat()
-        val path = Path().apply {
-            moveTo(at.x + spread * 40f, at.y + 30f)
-            cubicTo(
-                at.x + spread * 80f, at.y + 90f,
-                at.x + spread * 110f + curl * 40f, at.y + 140f,
-                at.x + spread * 90f + curl * 60f, at.y + 170f + curl * 20f,
-            )
-        }
-        drawPath(path, colour, style = Stroke(width = 16f - abs(spread) * 4f, cap = StrokeCap.Round))
-    }
-    scale(1f, 1f + sin(clock * 1.2).toFloat() * 0.06f, pivot = at) {
-        drawOval(colour, Offset(at.x - 70f, at.y - 90f), Size(140f, 130f))
-    }
-    drawEye(Offset(at.x - 26f, at.y + 2f), 8f, light)
-    drawEye(Offset(at.x + 26f, at.y + 2f), 8f, light)
-}
-
-/** A big creature's eye: faint in daylight, glowing in the dark. */
-private fun DrawScope.drawEye(at: Offset, r: Float, light: Float) {
-    val glow = (1 - light).coerceIn(0f, 1f)
-    if (glow > 0.3f) drawCircle(Color(0xFF8CF7E5).copy(alpha = 0.25f * glow), r * 3f, at)
-    drawCircle(lerp(Color.White.copy(alpha = 0.3f), Color(0xFFB8FFF3), glow), r, at)
-}
-

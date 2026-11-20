@@ -1,5 +1,6 @@
 package name.onetrue.supertuxrower.ui
 
+import android.content.Context
 import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -21,11 +22,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.Slider
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -38,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +53,8 @@ import androidx.compose.ui.unit.sp
 import name.onetrue.supertuxrower.DebugCommands
 import name.onetrue.supertuxrower.NAV
 import name.onetrue.supertuxrower.game.CaveGame
+import name.onetrue.supertuxrower.game.Cue
+import name.onetrue.supertuxrower.game.CueGate
 import name.onetrue.supertuxrower.model.Band
 import name.onetrue.supertuxrower.model.Piece
 import name.onetrue.supertuxrower.model.describe
@@ -74,6 +82,17 @@ fun WorkoutScreen(
     // Read only in the scene's drawing and the score, so a frame doesn't recompose the whole screen.
     val frame = remember { mutableLongStateOf(0L) }
     val game = remember { CaveGame() }
+    val context = LocalContext.current
+    val audio = remember { GameAudio(context) }
+    DisposableEffect(audio) { onDispose { audio.release() } }
+    val settings = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+    var volume by remember { mutableStateOf(settings.getFloat("volume", 0.7f)) }
+    var volumeOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(volume) {
+        audio.volume = volume
+        settings.edit().putFloat("volume", volume).apply()
+    }
+    val gate = remember { CueGate() }
     var paused by remember { mutableStateOf(false) }
     // Coming out of a pause counts down first, still frozen, so you can get back on the handle.
     var resumeIn by remember { mutableStateOf<Double?>(null) }
@@ -81,6 +100,8 @@ fun WorkoutScreen(
     // After the last piece Tux swims out of the cave; then a card, then the stats.
     var finished by remember { mutableStateOf(0.0) }
     var leaving by remember { mutableStateOf(false) }
+    // Leaving fades to the stats rather than cutting.
+    var fade by remember { mutableStateOf(0f) }
     fun resume() {
         if (paused && resumeIn == null) resumeIn = RESUME_COUNTDOWN
     }
@@ -97,6 +118,12 @@ fun WorkoutScreen(
                 "end" -> runner.finish()
                 "compact" -> onCompactChange(true)
                 "full" -> onCompactChange(false)
+                "mute" -> volume = 0f
+                "unmute" -> volume = 0.7f
+                else -> when {
+                    it.startsWith("volume ") -> it.substringAfter(' ').toFloatOrNull()?.let { v -> volume = (v / 100).coerceIn(0f, 1f) }
+                    it.startsWith("eat ") -> CaveGame.Food.entries.firstOrNull { f -> f.name.equals(it.substringAfter(' '), ignoreCase = true) }?.let(game::treat)
+                }
             }
         }
     }
@@ -107,7 +134,10 @@ fun WorkoutScreen(
         var sinceView = 0.0
         var logged = ""
         var bonks = 0
-        while (!leaving) {
+        var heardPhase = runner.phase
+        var heardIndex = runner.index
+        var heardTick = 0
+        while (fade < 1f) {
             withFrameNanos { now ->
                 val dt = if (last == 0L) 0.0 else (now - last) / 1e9
                 last = now
@@ -115,10 +145,13 @@ fun WorkoutScreen(
                 resumeIn?.let { left ->
                     if (left - dt > 0) {
                         resumeIn = left - dt
+                        val tick = ceil(left - dt).toInt()
+                        if (tick != ceil(left).toInt()) audio.play(Cue.TICK)
                     } else {
                         resumeIn = null
                         paused = false
                         game.easeIn()
+                        audio.play(Cue.GO)
                     }
                 }
                 runner.paused = paused
@@ -126,6 +159,18 @@ fun WorkoutScreen(
                 sim?.let { steer(it, runner) }
                 // Paused, the world holds still: no swimming, bubbles or animation.
                 if (!paused) game.update(dt, runner, s)
+                while (game.cues.isNotEmpty()) game.cues.removeFirst().let { (cue, variant) -> audio.play(cue, variant) }
+                // A chime as each piece starts and as each rest starts, and ticks counting a rest down.
+                if (runner.phase != heardPhase || runner.index != heardIndex) {
+                    if (runner.phase == Phase.WORK) audio.play(Cue.PIECE_START)
+                    if (runner.phase == Phase.REST) audio.play(Cue.REST_START)
+                    heardPhase = runner.phase
+                    heardIndex = runner.index
+                }
+                val restTick = if (view.phase == Phase.REST) view.restSeconds?.let { ceil(it).toInt() } ?: 0 else 0
+                if (restTick != heardTick && restTick in 1..3) audio.play(Cue.TICK)
+                heardTick = restTick
+                audio.ambience(on = !paused, volume = 0.25f + 0.2f * (1 - game.light.toFloat()))
                 val step = "${runner.phase} ${runner.index + 1}/${runner.workout.pieces.size} ${runner.piece?.band?.name ?: "free"}"
                 if (step != logged) {
                     logged = step
@@ -134,9 +179,10 @@ fun WorkoutScreen(
                 if (game.bonks != bonks) {
                     bonks = game.bonks
                     val c = game.sliceAt(game.metres)
-                    Log.i(NAV, "Bonk at %.0f m: y %.2f, cave %.2f ± %.2f, power %.0f W (%s)".format(
-                        game.metres, game.y, c?.centre ?: 0.0, c?.half ?: 0.0, s.smoothWatts, runner.profile.band(s.smoothWatts).name))
+                    Log.i(NAV, "Bonk at %.0f m: y %.2f, cave %.2f to %.2f, power %.0f W (%s)".format(
+                        game.metres, game.y, c?.floor ?: 0.0, c?.ceiling ?: 0.0, s.smoothWatts, runner.profile.band(s.smoothWatts).name))
                 }
+                if (leaving) fade = (fade + dt.toFloat() / 0.6f).coerceAtMost(1f)
                 frame.longValue++
                 // The overlay only needs a few updates a second; the scene redraws every frame.
                 // Paused, it holds still too, rather than showing the flywheel spinning down.
@@ -154,50 +200,71 @@ fun WorkoutScreen(
     }
 
     val target = if (view.phase == Phase.REST) null else view.piece?.band
-    Column(Modifier.fillMaxSize().background(Deep)) {
-        if (compact) CompactOverlay(view, onExpand = { onCompactChange(false) })
-        Box(Modifier.fillMaxWidth().height(64.dp).background(Ice).padding(horizontal = 24.dp)) {
-            Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.Bottom) {
-                Text(runner.profile.name, color = Deep, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                if (sim != null) Text("  simulated", color = Deep.copy(alpha = 0.55f), fontSize = 18.sp)
-            }
-            Score(game, { frame.longValue }, Modifier.align(Alignment.Center))
-            Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                val waiting = paused && resumeIn == null
-                if (view.phase != Phase.DONE) Button({ if (waiting) resume() else pause() }) { Text(if (waiting) "Resume" else "Pause", fontSize = 18.sp) }
-                Button(
-                    { Log.i(NAV, "End"); runner.finish() },
-                    colors = ButtonDefaults.buttonColors(containerColor = Deep, contentColor = Ink),
-                ) { Text("End", fontSize = 18.sp) }
-            }
-        }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            GameScene(game, { frame.longValue }, target, Modifier.fillMaxSize())
-            val cardAt = Modifier.align(Alignment.Center)
-            when {
-                resumeIn != null -> GameCard(view.piece?.band?.color(), cardAt) {
-                    Label("Get ready")
-                    Text("${ceil(resumeIn!!).toInt()}", style = numbers(96, FontWeight.Bold, view.piece?.band?.color() ?: Ink))
-                    Text("Take hold of the handle.", color = InkMuted, fontSize = 20.sp)
+    // The next piece's band shows on the gauge for the end of a rest: its last 15 seconds, or all
+    // of one that waits for you.
+    val upcoming = if (view.phase == Phase.REST && (view.restSeconds ?: 0.0) <= 15) view.nextPiece?.band else null
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().background(Deep)) {
+            if (compact) CompactOverlay(view, onExpand = { onCompactChange(false) })
+            Box(Modifier.fillMaxWidth().height(64.dp).background(Ice).padding(horizontal = 24.dp)) {
+                Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.Bottom) {
+                    Text(runner.profile.name, color = Deep, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    if (sim != null) Text("  simulated", color = Deep.copy(alpha = 0.55f), fontSize = 18.sp)
                 }
-                paused -> {}
-                view.phase == Phase.DONE -> if (finished > 2.5) FinishCard(game, runner, cardAt) { leaving = true }
-                view.phase == Phase.REST || view.phase == Phase.READY -> PhaseCard(view, cardAt)
-                grace > 0 -> GraceCard(view, grace, cardAt)
-            }
-            if (paused && resumeIn == null) {
-                Column(
-                    Modifier.fillMaxSize().background(Deep.copy(alpha = 0.6f)).clickable { resume() },
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text("Paused", style = MaterialTheme.typography.displayMedium, color = Ink)
-                    Spacer(Modifier.height(24.dp))
-                    Button(::resume) { Text("Resume", fontSize = 24.sp) }
+                Score(game, { frame.longValue }, Modifier.align(Alignment.Center))
+                Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val waiting = paused && resumeIn == null
+                    Box {
+                        Button(
+                            { volumeOpen = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = Deep, contentColor = Ink),
+                        ) { Text(if (volume > 0f) "Volume ${(volume * 100).roundToInt()}%" else "Sound off", fontSize = 18.sp) }
+                        DropdownMenu(volumeOpen, { volumeOpen = false }) {
+                            Row(Modifier.padding(horizontal = 16.dp).width(320.dp), verticalAlignment = Alignment.CenterVertically) {
+                                TextButton({ volume = if (volume > 0f) 0f else 0.7f }) { Text(if (volume > 0f) "Mute" else "Unmute") }
+                                Slider(volume, { volume = it }, Modifier.weight(1f))
+                            }
+                        }
+                    }
+                    if (view.phase != Phase.DONE) Button({ if (waiting) resume() else pause() }) { Text(if (waiting) "Resume" else "Pause", fontSize = 18.sp) }
+                    Button(
+                        { Log.i(NAV, "End"); runner.finish() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Deep, contentColor = Ink),
+                    ) { Text("End", fontSize = 18.sp) }
                 }
             }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                GameScene(game, { frame.longValue }, target, Modifier.fillMaxSize(), upcoming) { cue, key ->
+                    // Big creatures are far off, so a little quieter.
+                    if (gate.pass(cue, key, game.clock)) audio.play(cue, volume = if (cue in DISTANT) 0.6f else 0.8f)
+                }
+                val cardAt = Modifier.align(Alignment.Center)
+                when {
+                    resumeIn != null -> GameCard(view.piece?.band?.color(), cardAt) {
+                        Label("Get ready")
+                        Text("${ceil(resumeIn!!).toInt()}", style = numbers(96, FontWeight.Bold, view.piece?.band?.color() ?: Ink))
+                        Text("Take hold of the handle.", color = InkMuted, fontSize = 20.sp)
+                    }
+                    paused -> {}
+                    view.phase == Phase.DONE -> if (finished > 2.5) FinishCard(game, runner, cardAt) { leaving = true }
+                    view.phase == Phase.REST || view.phase == Phase.READY -> PhaseCard(view, cardAt)
+                    grace > 0 -> GraceCard(view, grace, cardAt)
+                }
+                if (paused && resumeIn == null) {
+                    Column(
+                        Modifier.fillMaxSize().background(Deep.copy(alpha = 0.6f)).clickable { resume() },
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text("Paused", style = MaterialTheme.typography.displayMedium, color = Ink)
+                        Spacer(Modifier.height(24.dp))
+                        Button(::resume) { Text("Resume", fontSize = 24.sp) }
+                    }
+                }
+            }
+            if (!compact) FullOverlay(view, onMinimize = { onCompactChange(true) })
         }
-        if (!compact) FullOverlay(view, onMinimize = { onCompactChange(true) })
+        if (fade > 0f) Box(Modifier.fillMaxSize().background(Deep.copy(alpha = fade)))
     }
 }
 
@@ -292,6 +359,8 @@ private fun GameCard(accent: Color?, modifier: Modifier, content: @Composable Co
 }
 
 private const val RESUME_COUNTDOWN = 3.0
+
+private val DISTANT = setOf(Cue.WHALE_SONG, Cue.ORCA, Cue.BELUGA)
 
 @Composable
 private fun Score(game: CaveGame, frame: () -> Long, modifier: Modifier) {

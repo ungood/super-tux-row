@@ -11,6 +11,7 @@ data class Profile(
     /** Reference 2k time; the bands are fractions of the power at this pace. */
     val twoKSeconds: Int,
     val compactOverlay: Boolean = false,
+    val steering: Steering = Steering.STEADY,
 ) {
     val twoKWatts: Double get() = Rowing.watts(2000.0 / twoKSeconds)
 
@@ -20,6 +21,17 @@ data class Profile(
 
     /** Boat speed at a fraction of 2k power. */
     fun speedAt(fraction: Double) = Rowing.speed(twoKWatts * fraction)
+}
+
+/**
+ * How Tux Row 2D steers: how strongly Tux answers being off your target power ([response], where
+ * 1 is the full climb rate), and how far past the band's edges, as a fraction of 2k power, still
+ * counts as in it ([margin]).
+ */
+enum class Steering(val label: String, val response: Double, val margin: Double) {
+    RELAXED("Relaxed", 0.45, 0.05),
+    STEADY("Steady", 0.7, 0.025),
+    SHARP("Sharp", 1.0, 0.0),
 }
 
 enum class StartingLevel(val label: String, val twoKSeconds: Int) {
@@ -40,7 +52,8 @@ class ProfileStore(context: Context) {
         val array = JSONArray(prefs.getString(PROFILES, "[]"))
         return (0 until array.length()).map { i ->
             val o = array.getJSONObject(i)
-            Profile(o.getString("id"), o.getString("name"), o.getInt("twoKSeconds"), o.optBoolean("compactOverlay"))
+            val steering = Steering.entries.firstOrNull { it.name == o.optString("steering") } ?: Steering.STEADY
+            Profile(o.getString("id"), o.getString("name"), o.getInt("twoKSeconds"), o.optBoolean("compactOverlay"), steering)
         }
     }
 
@@ -68,6 +81,7 @@ class ProfileStore(context: Context) {
                     .put("name", it.name)
                     .put("twoKSeconds", it.twoKSeconds)
                     .put("compactOverlay", it.compactOverlay)
+                    .put("steering", it.steering.name)
             )
         }
         prefs.edit().putString(PROFILES, array.toString()).apply()

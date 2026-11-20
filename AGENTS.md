@@ -25,7 +25,10 @@ The tablet's address is `TABLET=host:port` in `.env`, which isn't checked in (se
 over Wi-Fi was probably reset by a reboot; ask the user to re-enable it (see `docs/tablet.md`).
 Drive the app with `just do` rather than tapping coordinates; it answers in the `Nav` log. Add a
 command to `DebugCommands` when you need one; `giant whale` summons a
-big creature, which otherwise turns up only every few minutes. Screenshot only to look at the UI itself.
+big creature, which otherwise turns up only every few minutes, and `show urchin` fills the cave
+with one kind of smaller creature (`show buried` for the easter eggs in the ice and rock, `show
+off` to stop; `just do help` lists the kinds). `light 0.2` draws the deep without rowing there;
+`volume 50` sets the game's volume. Screenshot only to look at the UI itself.
 `adb shell input tap X Y` works as a last resort; the screen is 1920×1080.
 
 ## Architecture
@@ -37,9 +40,9 @@ big creature, which otherwise turns up only every few minutes. Screenshot only t
 | `sensor` | `S4Link` (USB serial), `Rower` (turns S4 lines into metrics), `RowerSources` (USB with reconnect watchdog; simulated rower) |
 | `model` | Bands, profiles (and their storage), workouts and the built-in library, rowing math |
 | `workout` | `WorkoutRunner`: steps through pieces and rests, time in band, forecasting; `BandTracker` |
-| `game` | `CaveGame`: the cave game's logic, no drawing |
+| `game` | `CaveGame`: the cave game's logic, no drawing, including its terrain; `Sightings`: which giant passes when; `Synth`: the game's sounds, made from sine waves and noise; `CueGate` |
 | `bob` | Sudo Ergo Es. Pure: `TokenEconomy`, `WakePlanner`, `Terminal` (Claude Code–style output as VT100 bytes), `Challenge`, `Pace`, `Prompts` (Bob's system prompts, markdown in `src/main/resources/bob`), and Escape's simulated computer (`Machine`, `World`, `Shell`, `Commands`). Android: `BobAgent` (the Claude agent loop via the Anthropic Java SDK), `Voice` (text-to-speech that the typing follows; its rate controller `VoicePacing` is pure) and `BobTools` (bash on the machine, notebook, challenges, pace, server-side code execution and web tools) |
-| `ui` | Compose screens: games and modes (`GameScreens`), Tux Row 2D (`WorkoutScreen`, `GameScene` draws `CaveGame`), Sudo Ergo Es (`BobScreen`, `TerminalScreen` draws Termux's emulator) |
+| `ui` | Compose screens: games and modes (`GameScreens`), Tux Row 2D (`WorkoutScreen`, `GameScene` draws `CaveGame`; the creatures are in `CaveLife`, `CaveFloor`, `CaveWater` and `CaveGiants`, the easter eggs in `CaveBuried`; `GameAudio` plays `Synth`'s sounds), Sudo Ergo Es (`BobScreen`, `TerminalScreen` draws Termux's emulator) |
 
 Keep `model`, `workout`, `game` and `Rower` free of Android framework calls so they stay
 unit-testable on the JVM. `Rower.handle` and `Rower.snapshot` take an explicit `now`; tests
