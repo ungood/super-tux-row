@@ -23,13 +23,16 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
+object HiddenLayers { var set = emptySet<String>() }
+private fun shown(layer: String) = layer !in HiddenLayers.set
+
 /** Draws the cave game: water, cave walls, fish, bubbles, Tux and the power gauge. */
 @Composable
-fun GameScene(game: CaveGame, frame: Long, target: Band?, modifier: Modifier) {
+fun GameScene(game: CaveGame, frame: () -> Long, target: Band?, modifier: Modifier) {
     val measurer = rememberTextMeasurer()
     // Clipped: the backdrop and the bonk shake reach past the edges.
     Canvas(modifier.clipToBounds()) {
-        frame // Redraw every frame.
+        frame() // Read while drawing, so each frame redraws without recomposing.
         val unit = size.height / CaveGame.VIEW_HEIGHT.toFloat()
         val middle = size.height / 2
         fun y(world: Double) = middle - ((world - game.camera) * unit).toFloat()
@@ -41,21 +44,21 @@ fun GameScene(game: CaveGame, frame: Long, target: Band?, modifier: Modifier) {
         val lift = (game.camera * unit).toFloat()
 
         // Water gets darker with depth.
-        drawWater(((-game.camera / 10).toFloat() + 1) / 2)
-        drawLightRays(scroll, clock)
-        drawBackdrop(scroll, lift, 0.2f, 420f, Color(0xFF2A6C94).copy(alpha = 0.25f), salt = 60)
-        drawBackdrop(scroll, lift, 0.45f, 300f, Color(0xFF184A6E).copy(alpha = 0.45f), salt = 70)
-        drawMarineSnow(scroll, lift, clock)
+        if (shown("water")) drawWater(((-game.camera / 10).toFloat() + 1) / 2)
+        if (shown("rays")) drawLightRays(scroll, clock)
+        if (shown("backdrop")) drawBackdrop(scroll, lift, 0.2f, 420f, Color(0xFF2A6C94).copy(alpha = 0.25f), salt = 60)
+        if (shown("backdrop")) drawBackdrop(scroll, lift, 0.45f, 300f, Color(0xFF184A6E).copy(alpha = 0.45f), salt = 70)
+        if (shown("snow")) drawMarineSnow(scroll, lift, clock)
 
         // A bonk shakes the world, but not the score bar or gauge.
         val sinceBonk = (clock - game.bonkedAt).toFloat()
         val shake = if (sinceBonk < 0.4f) (1 - sinceBonk / 0.4f) * 14f else 0f
         translate(sin(clock * 70).toFloat() * shake, cos(clock * 55).toFloat() * shake * 0.6f) {
             val visible = game.slices.filter { x(it.metre) in -100f..size.width + 100f }
-            drawCeiling(visible.map { WallPoint(it.metre.roundToInt(), x(it.metre), y(it.centre + it.half)) }, clock)
-            drawFloor(visible.map { WallPoint(it.metre.roundToInt(), x(it.metre), y(it.centre - it.half)) }, clock)
+            if (shown("ceiling")) drawCeiling(visible.map { WallPoint(it.metre.roundToInt(), x(it.metre), y(it.centre + it.half)) }, clock)
+            if (shown("floor")) drawFloor(visible.map { WallPoint(it.metre.roundToInt(), x(it.metre), y(it.centre - it.half)) }, clock)
 
-            for (f in game.fish) {
+            if (shown("fish")) for (f in game.fish) {
                 val at = Offset(x(f.metre), y(f.height))
                 if (!f.eaten) {
                     drawFish(at, f.gold, clock, f.metre.roundToInt())
@@ -72,7 +75,7 @@ fun GameScene(game: CaveGame, frame: Long, target: Band?, modifier: Modifier) {
                 )
                 drawText(points, topLeft = Offset(burst.x - points.size.width / 2, burst.y - 50f - 60f * t))
             }
-            for (b in game.bubbles) {
+            if (shown("bubbles")) for (b in game.bubbles) {
                 val age = ((clock - b.born) / 1.5).toFloat()
                 val wobble = sin(clock * 6 + b.born * 13).toFloat() * 4f * age
                 drawBubble(Offset(x(b.metre) + wobble, y(b.height)), b.size * (1 + age * 0.5f), 1 - age)

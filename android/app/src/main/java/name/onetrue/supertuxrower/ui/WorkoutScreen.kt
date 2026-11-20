@@ -1,5 +1,6 @@
 package name.onetrue.supertuxrower.ui
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import name.onetrue.supertuxrower.DebugCommands
+import name.onetrue.supertuxrower.NAV
 import name.onetrue.supertuxrower.game.CaveGame
 import name.onetrue.supertuxrower.model.Band
 import name.onetrue.supertuxrower.model.Piece
@@ -58,13 +61,28 @@ fun WorkoutScreen(
     onDone: () -> Unit,
 ) {
     var view by remember { mutableStateOf(runner.view()) }
-    var frame by remember { mutableLongStateOf(0L) }
+    // Read only in the scene's drawing and the score, so a frame doesn't recompose the whole screen.
+    val frame = remember { mutableLongStateOf(0L) }
     val game = remember { CaveGame() }
     var paused by remember { mutableStateOf(false) }
+    LaunchedEffect(runner) {
+        DebugCommands.commands.collect {
+            when (it.lowercase()) {
+                "pause" -> paused = true
+                "resume" -> paused = false
+                "skip" -> runner.skip()
+                "end" -> runner.finish()
+                "compact" -> onCompactChange(true)
+                "full" -> onCompactChange(false)
+            }
+        }
+    }
+    LaunchedEffect(paused) { Log.i(NAV, if (paused) "Paused" else "Running") }
 
     LaunchedEffect(runner) {
         var last = 0L
         var sinceView = 0.0
+        var logged = ""
         while (runner.phase != Phase.DONE) {
             withFrameNanos { now ->
                 val dt = if (last == 0L) 0.0 else (now - last) / 1e9
@@ -75,7 +93,12 @@ fun WorkoutScreen(
                 sim?.let { steer(it, runner) }
                 // Paused, the world holds still: no swimming, bubbles or animation.
                 if (!paused) game.update(dt, runner, s)
-                frame++
+                val step = "${runner.phase} ${runner.index + 1}/${runner.workout.pieces.size} ${runner.piece?.band?.name ?: "free"}"
+                if (step != logged) {
+                    logged = step
+                    Log.i(NAV, "Workout $step")
+                }
+                frame.longValue++
                 // The overlay only needs a few updates a second; the scene redraws every frame.
                 sinceView += dt
                 if (sinceView >= 0.1) {
@@ -96,21 +119,15 @@ fun WorkoutScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (sim != null) SimulatedBadge()
-            frame // The score changes every frame.
-            val combo = if (game.multiplier > 1) "   ·   ×${game.multiplier}" else ""
-            Text(
-                "Fish ${game.score}   ·   Streak ${game.combo}$combo   ·   Bonks ${game.bonks}",
-                Modifier.weight(1f), color = Deep, fontSize = 26.sp, fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-            )
+            Score(game, { frame.longValue }, Modifier.weight(1f))
             val colors = ButtonDefaults.buttonColors(containerColor = Deep, contentColor = Ink)
             Button({ paused = !paused }) { Text(if (paused) "Resume" else "Pause", fontSize = 18.sp) }
             Button({ onCompactChange(!compact) }, colors = colors) { Text(if (compact) "Full stats" else "Compact", fontSize = 18.sp) }
-            Button(runner::skip, colors = colors) { Text("Skip", fontSize = 18.sp) }
-            Button(runner::finish, colors = colors) { Text("End", fontSize = 18.sp) }
+            Button({ Log.i(NAV, "Skip"); runner.skip() }, colors = colors) { Text("Skip", fontSize = 18.sp) }
+            Button({ Log.i(NAV, "End"); runner.finish() }, colors = colors) { Text("End", fontSize = 18.sp) }
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            GameScene(game, frame, target, Modifier.fillMaxSize())
+            GameScene(game, { frame.longValue }, target, Modifier.fillMaxSize())
             if (paused) {
                 Column(
                     Modifier.fillMaxSize().background(Deep.copy(alpha = 0.6f)).clickable { paused = false },
@@ -125,6 +142,16 @@ fun WorkoutScreen(
         }
         if (!compact) FullOverlay(view, Modifier.clickable { onCompactChange(true) })
     }
+}
+
+@Composable
+private fun Score(game: CaveGame, frame: () -> Long, modifier: Modifier) {
+    frame() // The score can change on any frame.
+    val combo = if (game.multiplier > 1) "   ·   ×${game.multiplier}" else ""
+    Text(
+        "Fish ${game.score}   ·   Streak ${game.combo}$combo   ·   Bonks ${game.bonks}",
+        modifier, color = Deep, fontSize = 26.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+    )
 }
 
 /** Points the simulated rower at whatever the workout is asking for. */

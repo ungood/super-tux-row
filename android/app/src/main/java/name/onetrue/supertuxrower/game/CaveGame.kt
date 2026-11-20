@@ -67,7 +67,8 @@ class CaveGame {
         private set
     val sinceStroke: Double get() = clock - lastStrokeAt
     private var nextBubble = 0.0
-    private var nextSlice = 0.0
+    /** The cave starts behind Tux too, so the screen is full from the first frame. */
+    private var nextSlice = -BEHIND
     private var nextFish = FIRST_FISH
     private var base = 0.0
     private var undulation = 0.0

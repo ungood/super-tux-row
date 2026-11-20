@@ -46,8 +46,8 @@ private val Orange = Color(0xFFFAAA1E)
 /** Open water: lighter towards the surface, darker the deeper the camera is. */
 internal fun DrawScope.drawWater(depth: Float) {
     val dark = depth.coerceIn(0f, 1f)
-    val top = lerp(Color(0xFF1C5A86), Color(0xFF0A2440), dark)
-    val bottom = lerp(Color(0xFF0A2848), Color(0xFF020814), dark)
+    val top = lerp(Color(0xFF1C5A86), Color(0xFF103458), dark)
+    val bottom = lerp(Color(0xFF0E3458), Color(0xFF08203C), dark)
     drawRect(Brush.verticalGradient(listOf(top, bottom)))
 }
 

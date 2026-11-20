@@ -16,12 +16,16 @@ tools with mise or globally. Tasks live in the `justfile`:
 | `just sim` | Install and start on the simulated rower |
 | `just screenshot FILE` | Save the tablet's screen, to check UI changes by looking at them |
 | `just logs` | Follow the app's logcat |
+| `just do CMD` | Send a debug build a command (`profile Sim`, `workout 8x500m`, `pause`, `skip`, `back`, …; `just do help` lists them) and show the last `Nav` log lines |
+| `just nav` | Follow screen changes, workout steps and button presses (log tag `Nav`) |
 | `just set-home` / `just restore-home` | Make the app the tablet's home app, or give home back to Android's launcher |
 
 The tablet's address is `TABLET=host:port` in `.env`, which isn't checked in (see
 `example.env`). Never commit a real hostname or IP address. If `adb` can't reach the tablet, adb
 over Wi-Fi was probably reset by a reboot; ask the user to re-enable it (see `docs/tablet.md`).
-Driving the UI from adb (`adb shell input tap X Y`) works; the screen is 1920×1080.
+Drive the app with `just do` rather than tapping coordinates; it answers in the `Nav` log. Add a
+command to `DebugCommands` when you need one. Screenshot only to look at the UI itself.
+`adb shell input tap X Y` works as a last resort; the screen is 1920×1080.
 
 ## Architecture
 

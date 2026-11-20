@@ -62,6 +62,18 @@ stop: _tablet
 logs: _tablet
     {{adb}} logcat --pid=$({{adb}} shell pidof {{package}})
 
+# Follow which screen the app is on and the workout's steps, to drive it by taps without screenshots
+[group('tablet')]
+nav: _tablet
+    {{adb}} logcat -s Nav:I
+
+# Send a debug build a command, e.g. `just do workout 8x500m` (list: `just do help`); see `just nav`
+[group('tablet')]
+do +cmd: _tablet
+    {{adb}} shell am broadcast -a {{package}}.DEBUG --es cmd "'{{cmd}}'" > /dev/null
+    @sleep 1
+    @{{adb}} logcat -d -s Nav:I | sed 's/.*Nav *: //' | awk '/^Command /{out=""} {out=out $0 "\n"} END{printf "%s", out}'
+
 # Save a screenshot from the tablet
 [group('tablet')]
 screenshot file="screenshot.png": _tablet

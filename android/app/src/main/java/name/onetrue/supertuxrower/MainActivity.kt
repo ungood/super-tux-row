@@ -3,6 +3,7 @@ package name.onetrue.supertuxrower
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -16,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import name.onetrue.supertuxrower.bob.BobTools
 import name.onetrue.supertuxrower.bob.BobMode
+import name.onetrue.supertuxrower.model.Library
 import name.onetrue.supertuxrower.model.Profile
 import name.onetrue.supertuxrower.model.ProfileStore
 import name.onetrue.supertuxrower.model.Workout
@@ -79,6 +81,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** Log tag for screen changes and workout steps; `just nav` follows it. */
+const val NAV = "Nav"
+
 private sealed interface Screen {
     data object Loading : Screen
     data object Profiles : Screen
@@ -89,6 +94,15 @@ private sealed interface Screen {
     data class Rowing(val runner: WorkoutRunner) : Screen
     data class Summary(val runner: WorkoutRunner) : Screen
     data class Bob(val mode: BobMode) : Screen
+}
+
+/** One line per screen, so a script driving the tablet can follow along (`just nav`). */
+private fun Screen.describe(): String = when (this) {
+    is Screen.Edit -> "Edit ${profile?.name ?: "new profile"}"
+    is Screen.Rowing -> "Rowing ${runner.workout.name}"
+    is Screen.Summary -> "Summary ${runner.workout.name}"
+    is Screen.Bob -> "Bob ${mode.name.lowercase()}"
+    else -> this::class.simpleName ?: toString()
 }
 
 @Composable
@@ -103,6 +117,7 @@ private fun App(
     var lastUsed by remember { mutableStateOf(store.lastUsedId) }
     var profile by remember { mutableStateOf<Profile?>(null) }
     var screen by remember { mutableStateOf<Screen>(Screen.Loading) }
+    LaunchedEffect(screen) { Log.i(NAV, "Screen ${screen.describe()}") }
 
     // Show the loading screen for at least a moment, and until the rower answers or a few seconds pass.
     LaunchedEffect(Unit) {
@@ -122,12 +137,39 @@ private fun App(
         screen = Screen.Games
     }
 
-    BackHandler(enabled = screen != Screen.Profiles) {
+    fun back() {
         screen = when (screen) {
             is Screen.Rowing, is Screen.Summary -> Screen.TuxRowModes
             is Screen.Bob -> Screen.BobModes
             Screen.TuxRowModes, Screen.BobModes -> Screen.Games
             else -> Screen.Profiles
+        }
+    }
+    BackHandler(enabled = screen != Screen.Profiles, onBack = ::back)
+
+    DebugCommands.Listen()
+    LaunchedEffect(Unit) {
+        DebugCommands.commands.collect { cmd ->
+            val verb = cmd.substringBefore(' ').lowercase()
+            val arg = cmd.substringAfter(' ', "")
+            val p = profile
+            when {
+                verb in DebugCommands.WORKOUT -> {}
+                verb == "profile" -> profiles.firstOrNull { it.name.equals(arg, ignoreCase = true) }?.let(::choose)
+                    ?: Log.i(NAV, "No profile called $arg: ${profiles.joinToString { it.name }}")
+                verb == "back" -> back()
+                verb == "hide" -> name.onetrue.supertuxrower.ui.HiddenLayers.set = arg.split(',').map { it.trim() }.toSet()
+                verb == "sim" -> onSimulate(true)
+                verb == "rower" -> onSimulate(false)
+                p == null && verb != "help" -> Log.i(NAV, "Pick a profile first: profile <name>")
+                verb == "games" -> screen = Screen.Games
+                verb == "tuxrow" -> screen = Screen.TuxRowModes
+                verb == "workout" && p != null -> Library.workouts.firstOrNull { looseName(it.name) == looseName(arg) }
+                    ?.let { screen = Screen.Rowing(WorkoutRunner(it, p)) }
+                    ?: Log.i(NAV, "No workout called $arg: ${Library.workouts.joinToString { it.name }}")
+                else -> Log.i(NAV, (if (verb == "help") "Commands:" else "Unknown command $cmd. Try:") + " profile <name>, games, tuxrow, workout <name>, back, " +
+                    "sim, rower, ${DebugCommands.WORKOUT.joinToString()}")
+            }
         }
     }
 

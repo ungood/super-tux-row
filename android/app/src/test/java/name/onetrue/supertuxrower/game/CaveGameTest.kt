@@ -113,6 +113,17 @@ class CaveGameTest {
     }
 
     @Test
+    fun `the cave fills the screen behind Tux from the start`() {
+        val runner = WorkoutRunner(taster, testProfile)
+        val game = CaveGame()
+        val s = FakeRower(watts = 0.0).step(dt)
+        runner.update(dt, s)
+        game.update(dt, runner, s)
+        // Tux sits 30% of the way across, so about 9.4 m of course shows behind him.
+        assertTrue("first slice at ${game.slices.first().metre}", game.slices.first().metre <= -10)
+    }
+
+    @Test
     fun `the cave is built past the right edge`() {
         val runner = WorkoutRunner(taster, testProfile)
         val game = CaveGame()
